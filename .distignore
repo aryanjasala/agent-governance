@@ -1,0 +1,26 @@
+# Left out of the release zip (bin/build-zip.sh, wp dist-archive, 10up deploy action).
+/.git
+/.github
+/bin
+/dist
+/node_modules
+/vendor
+/tests
+/test-results
+/playwright-report
+/.distignore
+/.gitignore
+/composer.json
+/composer.lock
+/package.json
+/package-lock.json
+/phpcs.xml.dist
+/phpstan.neon.dist
+/phpunit.xml.dist
+/playwright.config.js
+/README.md
+/docs
+/blueprint.json
+/.phpunit.result.cache
+/.DS_Store
+/.wordpress-org

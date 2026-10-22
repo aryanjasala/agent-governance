@@ -1,0 +1,32 @@
+name: PHPStan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Lets the release workflow run these checks on its own pull request.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phpstan:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - uses: ramsey/composer-install@26d8a556604053a9612623447203a691f406fbe6 # v4
+
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse --error-format=github --no-progress --memory-limit=1G

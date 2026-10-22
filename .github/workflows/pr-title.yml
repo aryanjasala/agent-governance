@@ -1,0 +1,38 @@
+name: PR title
+
+# Pull requests are squash-merged and the PR title becomes the commit on main,
+# which decides the next release (see bin/release.sh). So the title has to be
+# a Conventional Commit: type(optional scope): description
+#   feat: -> minor release, fix: / perf: -> patch, feat!: -> major
+#   docs:, ci:, chore:, test:, refactor:, build:, style:, revert: -> no release
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+  # The release workflow runs this on its own pull request.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  title:
+    name: Conventional PR title
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the title
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          title="$EVENT_TITLE"
+          if [ -z "$title" ]; then
+            title="$(gh pr view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json title --jq .title)"
+          fi
+          echo "Title: $title"
+          pattern='^(feat|fix|perf|docs|ci|chore|test|refactor|build|style|revert)(\([a-z0-9._/-]+\))?!?: [^ ].+$'
+          if ! [[ "$title" =~ $pattern ]]; then
+            echo "::error::PR title must look like 'feat: add X', 'fix(admin): Y' or 'docs: Z'. It becomes the commit on main and decides the next release."
+            exit 1
+          fi

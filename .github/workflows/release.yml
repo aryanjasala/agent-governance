@@ -1,0 +1,117 @@
+name: Release
+
+# Publishes a release whenever main carries a version that has no tag yet,
+# normally right after the release pull request (prepare-release.yml) is
+# merged: tags vX.Y.Z, builds the zip and creates the GitHub release with the
+# readme.txt changelog entry as notes.
+#
+# Private repositories never release: a plugin is built in private and only
+# starts releasing once the repository is made public.
+#
+# Deploying to WordPress.org as well needs the repository variable
+# WPORG_DEPLOY=true and the secrets SVN_USERNAME and SVN_PASSWORD.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: GitHub release
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      released: ${{ steps.version.outputs.release }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Is this version released yet?
+        id: version
+        run: |
+          version="$(bin/release.sh check)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "v$version is already released, nothing to do."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Releasing v$version."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        if: steps.version.outputs.release == 'true'
+        with:
+          php-version: '8.3'
+          coverage: none
+
+      - uses: ramsey/composer-install@26d8a556604053a9612623447203a691f406fbe6 # v4
+        if: steps.version.outputs.release == 'true'
+
+      - name: Lint and unit test before releasing
+        if: steps.version.outputs.release == 'true'
+        run: |
+          vendor/bin/phpcs -q
+          vendor/bin/phpunit
+
+      - name: Build the zip and release notes
+        if: steps.version.outputs.release == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          bin/build-zip.sh
+          previous="$(git tag --list 'v*' --sort=-v:refname | head -n 1)"
+          {
+            awk -v heading="= $VERSION =" '$0 == heading { found = 1; next } /^= / { found = 0 } found' readme.txt
+            echo
+            echo "### Install"
+            echo
+            echo "Download \`agent-governance.zip\` below and upload it under **Plugins > Add New Plugin > Upload Plugin**, or run:"
+            echo
+            echo '```'
+            echo "wp plugin install https://github.com/$GITHUB_REPOSITORY/releases/download/v$VERSION/agent-governance.zip --activate"
+            echo '```'
+            echo
+            echo "SHA-256 of the zip: \`$(sha256sum dist/agent-governance.zip | cut -d ' ' -f 1)\`"
+            if [ -n "$previous" ]; then
+              echo
+              echo "**Full diff:** https://github.com/$GITHUB_REPOSITORY/compare/$previous...v$VERSION"
+            fi
+          } > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+
+      - name: Publish the release
+        if: steps.version.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "v$VERSION" "dist/agent-governance.zip" \
+            --target "$GITHUB_SHA" \
+            --title "Agent Governance $VERSION" \
+            --notes-file "$RUNNER_TEMP/notes.md"
+
+  wordpress-org:
+    name: Deploy to WordPress.org
+    needs: release
+    if: needs.release.outputs.released == 'true' && vars.WPORG_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2 # 2.3.0
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          SLUG: agent-governance
+          VERSION: ${{ needs.release.outputs.version }}

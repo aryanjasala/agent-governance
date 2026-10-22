@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<ruleset name="Agent Governance">
+	<description>WordPress coding standards for Agent Governance.</description>
+
+	<file>.</file>
+	<exclude-pattern>/vendor/*</exclude-pattern>
+	<exclude-pattern>/node_modules/*</exclude-pattern>
+	<exclude-pattern>/dist/*</exclude-pattern>
+	<exclude-pattern>/tests/*</exclude-pattern>
+
+	<arg name="extensions" value="php"/>
+	<arg name="parallel" value="8"/>
+	<arg value="sp"/>
+
+	<config name="testVersion" value="7.4-"/>
+	<config name="minimum_wp_version" value="6.6"/>
+
+	<rule ref="WordPress"/>
+	<rule ref="PHPCompatibilityWP"/>
+
+	<!-- The bar for WordPress VIP and other enterprise hosts: no unbounded queries, no uncached remote calls, no restricted functions. -->
+	<rule ref="WordPress-VIP-Go"/>
+
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="agent-governance"/>
+			</property>
+		</properties>
+	</rule>
+
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="AryanX\AgentGovernance"/>
+				<element value="agent_governance"/>
+			</property>
+		</properties>
+	</rule>
+
+	<!-- Classes in src/ follow PSR-4 (StudlyCase file per class), not WordPress file naming. -->
+	<rule ref="WordPress.Files.FileName">
+		<exclude-pattern>/src/*</exclude-pattern>
+	</rule>
+</ruleset>

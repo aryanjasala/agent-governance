@@ -1,0 +1,16 @@
+name: Feature request
+description: An idea that would make Agent Governance more useful.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you are trying to do, and where the plugin gets in the way or falls short today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help
+      description: How you picture it working. Screenshots or sketches are welcome.

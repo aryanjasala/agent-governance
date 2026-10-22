@@ -1,0 +1,52 @@
+{
+  "name": "aryanx/agent-governance",
+  "description": "Human approval, policies and an audit log for AI agents acting on WordPress.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "authors": [
+    {
+      "name": "Aryan Jasala",
+      "homepage": "https://profiles.wordpress.org/aryanjasala/"
+    }
+  ],
+  "require": {
+    "php": ">=7.4"
+  },
+  "require-dev": {
+    "automattic/vipwpcs": "^3.0",
+    "brain/monkey": "^2.7",
+    "php-stubs/wp-cli-stubs": "^2.12",
+    "phpcompatibility/phpcompatibility-wp": "^2.1",
+    "phpstan/extension-installer": "^1.4",
+    "phpstan/phpstan": "^2.1",
+    "phpunit/phpunit": "^9.6",
+    "szepeviktor/phpstan-wordpress": "^2.0",
+    "wp-coding-standards/wpcs": "^3.1"
+  },
+  "autoload": {
+    "psr-4": {
+      "AryanX\\AgentGovernance\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "AryanX\\AgentGovernance\\Tests\\": "tests/"
+    }
+  },
+  "config": {
+    "platform": {
+      "php": "7.4.33"
+    },
+    "sort-packages": true,
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true,
+      "phpstan/extension-installer": true
+    }
+  },
+  "scripts": {
+    "lint": "phpcs",
+    "lint:fix": "phpcbf",
+    "analyse": "phpstan analyse --memory-limit=1G",
+    "test": "phpunit"
+  }
+}

@@ -1,0 +1,114 @@
+name: Prepare release
+
+# After every merge to main, works out whether there is anything to release
+# (feat, fix, perf or breaking commits since the last tag). If there is, it
+# keeps one pull request open on the release/next branch that bumps the
+# version and adds the readme.txt changelog entry. Merging that pull request
+# publishes the release (see release.yml).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  release-pr:
+    name: Open or update the release pull request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Work out the next version
+        id: next
+        run: |
+          next="$(bin/release.sh next)"
+          echo "version=${next%% *}" >> "$GITHUB_OUTPUT"
+          echo "bump=${next##* }" >> "$GITHUB_OUTPUT"
+          echo "Next release: ${next:-nothing to release}"
+
+      - name: Update the release branch
+        if: steps.next.outputs.version != ''
+        env:
+          VERSION: ${{ steps.next.outputs.version }}
+        run: |
+          bin/release.sh notes > "$RUNNER_TEMP/notes.txt"
+          git switch -C release/next
+          bin/release.sh apply "$VERSION" "$RUNNER_TEMP/notes.txt"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -am "chore(release): $VERSION"
+          git push --force origin release/next
+
+      - name: Open or update the pull request
+        if: steps.next.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.next.outputs.version }}
+          BUMP: ${{ steps.next.outputs.bump }}
+        run: |
+          {
+            echo "Merging this publishes **$VERSION** ($BUMP release): it tags \`v$VERSION\`, builds the zip and creates the GitHub release."
+            echo
+            echo "Changelog entry added to \`readme.txt\`:"
+            echo
+            cat "$RUNNER_TEMP/notes.txt"
+            echo
+            echo "This pull request is kept up to date automatically after each merge to \`main\`."
+          } > "$RUNNER_TEMP/body.md"
+          title="chore(release): $VERSION"
+          # The GitHub API now and then answers "Something went wrong" yet does the
+          # work, so try a few times and check what is there before each try.
+          for attempt in 1 2 3; do
+            if [ "$(gh pr view release/next --json state --jq .state 2>/dev/null)" = "OPEN" ]; then
+              gh pr edit release/next --title "$title" --body-file "$RUNNER_TEMP/body.md" && exit 0
+            else
+              gh pr create --head release/next --base main --title "$title" --body-file "$RUNNER_TEMP/body.md" && exit 0
+            fi
+            echo "::warning::Attempt $attempt to open or update the release pull request failed, trying again."
+            sleep $(( attempt * 10 ))
+          done
+          echo "::error::Could not open or update the release pull request."
+          exit 1
+
+      - name: Start the checks on the release pull request
+        if: steps.next.outputs.version != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # On a public repository, a pull request opened or updated with GITHUB_TOKEN
+        # gets its workflow runs, but they wait for a maintainer to approve them.
+        # Approving them here lets the required checks report on the pull request.
+        # If no runs show up at all, start the checks through workflow_dispatch.
+        run: |
+          workflows=(phpcs.yml phpstan.yml unit-tests.yml e2e-tests.yml plugin-check.yml pr-title.yml)
+          sha="$(git rev-parse HEAD)"
+          for attempt in $(seq 1 24); do
+            sleep 5
+            runs="$(gh run list --branch release/next --commit "$sha" --event pull_request --limit 50 --json databaseId,conclusion)"
+            waiting="$(jq -r '.[] | select(.conclusion == "action_required") | .databaseId' <<< "$runs")"
+            for id in $waiting; do
+              gh api -X POST "repos/$GITHUB_REPOSITORY/actions/runs/$id/approve" > /dev/null && echo "Approved run $id"
+            done
+            if [ -z "$waiting" ] && [ "$(jq length <<< "$runs")" -ge "${#workflows[@]}" ]; then
+              echo "All ${#workflows[@]} checks are running on the pull request."
+              exit 0
+            fi
+          done
+          if [ "$(jq length <<< "$runs")" -gt 0 ]; then
+            echo "::error::Some pull request checks are still waiting for approval. Approve them on the Actions tab."
+            exit 1
+          fi
+          echo "::warning::No pull request runs showed up, so the checks are started through workflow_dispatch."
+          for workflow in "${workflows[@]}"; do
+            gh workflow run "$workflow" --ref release/next
+          done

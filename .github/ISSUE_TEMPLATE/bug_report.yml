@@ -1,0 +1,48 @@
+name: Bug report
+description: Something in Agent Governance does not work the way the docs say.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. See ...
+    validations:
+      required: true
+  - type: input
+    id: plugin
+    attributes:
+      label: Agent Governance version
+      placeholder: "1.1.0"
+    validations:
+      required: true
+  - type: input
+    id: wordpress
+    attributes:
+      label: WordPress version
+      placeholder: "6.8"
+    validations:
+      required: true
+  - type: input
+    id: php
+    attributes:
+      label: PHP version
+      placeholder: "8.2"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Errors or logs
+      description: PHP errors from debug.log, or errors from the browser console. Remove anything private first.
+      render: text

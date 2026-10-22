@@ -1,0 +1,19 @@
+{
+  "name": "agent-governance",
+  "private": true,
+  "description": "Human approval, policies and an audit log for AI agents acting on WordPress.",
+  "license": "GPL-2.0-or-later",
+  "scripts": {
+    "env:start": "docker compose -f tests/e2e/env/docker-compose.yml up -d",
+    "env:stop": "docker compose -f tests/e2e/env/docker-compose.yml down -v",
+    "test:e2e": "playwright test",
+    "screenshots": "SCREENSHOTS=1 playwright test screenshots",
+    "demo": "DEMO=1 playwright test demo"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

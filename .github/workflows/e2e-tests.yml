@@ -1,0 +1,84 @@
+name: E2E tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Lets the release workflow run these checks on its own pull request.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright (WordPress ${{ matrix.label }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The current release, as most sites run it.
+          - label: latest
+            image: php8.3-apache
+            core: ''
+            theme: twentytwentyfive
+          # The oldest versions readme.txt promises: Requires at least 6.9 (the first
+          # Abilities API release, before the hooks 7.1 added to it), Requires PHP 7.4.
+          - label: 6.9, PHP 7.4
+            image: php7.4-apache
+            core: '6.9.10'
+            theme: twentytwentyfive
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Playwright
+        run: npm ci
+
+      - name: Start WordPress
+        run: npm run env:start
+        env:
+          WP_IMAGE_TAG: ${{ matrix.image }}
+
+      - name: Switch to WordPress ${{ matrix.core }}
+        if: matrix.core != ''
+        env:
+          WP_IMAGE_TAG: ${{ matrix.image }}
+        run: |
+          c="docker compose -f tests/e2e/env/docker-compose.yml"
+          # The database comes up after WordPress does; install needs it.
+          for i in $(seq 1 60); do $c exec -T cli wp db check > /dev/null 2>&1 && break; sleep 2; done
+          $c exec -T cli wp core download --version=${{ matrix.core }} --force --skip-content
+          $c exec -T cli wp core install --url=http://localhost:8895 --title=E2E --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email
+          $c exec -T cli wp theme install ${{ matrix.theme }}
+          echo "WordPress $($c exec -T cli wp core version), PHP $($c exec -T wp php -r 'echo PHP_VERSION;')"
+
+      - name: Run end-to-end tests
+        run: npm run test:e2e
+        env:
+          # GitHub's Ubuntu runners ship Google Chrome, so no browser download is needed.
+          PW_CHANNEL: chrome
+          WP_THEME: ${{ matrix.theme }}
+
+      - name: WordPress debug log
+        if: failure()
+        run: docker compose -f tests/e2e/env/docker-compose.yml exec -T wp cat /var/www/html/wp-content/debug.log || true
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: playwright-report-${{ strategy.job-index }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
