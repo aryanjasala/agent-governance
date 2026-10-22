@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/aryanjasala/agent-governance/main/blueprint.json"><img src="https://img.shields.io/badge/Try%20in-WordPress%20Playground-3858e9?logo=wordpress&logoColor=white" alt="Try in WordPress Playground"></a>
   <a href="https://github.com/aryanjasala/agent-governance/releases/latest"><img src="https://img.shields.io/github/v/release/aryanjasala/agent-governance?label=release&color=2271b1" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/WordPress-6.6%2B-3858e9?logo=wordpress&logoColor=white" alt="WordPress 6.6+">
+  <img src="https://img.shields.io/badge/WordPress-6.9%2B-3858e9?logo=wordpress&logoColor=white" alt="WordPress 6.9+">
   <img src="https://img.shields.io/badge/PHP-7.4%2B-777bb4?logo=php&logoColor=white" alt="PHP 7.4+">
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-GPL--2.0--or--later-blue" alt="License: GPL-2.0-or-later"></a>
   <br>
@@ -52,7 +52,7 @@ Or with WP-CLI:
 wp plugin install https://github.com/aryanjasala/agent-governance/releases/latest/download/agent-governance.zip --activate
 ```
 
-Needs WordPress 6.6+ and PHP 7.4+. To try it first, the **Try in WordPress Playground** badge opens a throwaway WordPress in your browser with the plugin and some demo content.
+Needs WordPress 6.9+ and PHP 7.4+. To try it first, the **Try in WordPress Playground** badge opens a throwaway WordPress in your browser with the plugin and some demo content.
 
 ## Quick look
 
