@@ -1,0 +1,240 @@
+/* Tools > Agent Governance. */
+
+.agg-wrap .agg-pause-form {
+	display: inline;
+}
+
+.agg-wrap .agg-pause-button {
+	cursor: pointer;
+}
+
+.agg-paused {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 12px;
+	margin: 12px 0 4px;
+	padding: 10px 14px;
+	border-left: 4px solid #d63638;
+	background: #fcf0f1;
+}
+
+.agg-paused .agg-pause-form {
+	margin-left: auto;
+}
+
+.agg-tabs {
+	margin-bottom: 16px;
+}
+
+.agg-table td,
+.agg-table th {
+	vertical-align: top;
+}
+
+.agg-table .agg-empty {
+	padding: 24px 12px;
+	color: #646970;
+	text-align: center;
+}
+
+.agg-sub {
+	color: #646970;
+	font-size: 12px;
+}
+
+.agg-method {
+	display: inline-block;
+	padding: 0 5px;
+	border-radius: 3px;
+	background: #f0f0f1;
+	font-family: Consolas, Monaco, monospace;
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 18px;
+}
+
+.agg-badge {
+	display: inline-block;
+	padding: 1px 8px;
+	border-radius: 10px;
+	background: #f0f0f1;
+	color: #1d2327;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 18px;
+	white-space: nowrap;
+}
+
+.agg-badge--allowed,
+.agg-badge--executed {
+	background: #edfaef;
+	color: #005c12;
+}
+
+.agg-badge--held,
+.agg-badge--pending,
+.agg-badge--approved {
+	background: #fcf9e8;
+	color: #6e4e00;
+}
+
+.agg-badge--denied,
+.agg-badge--failed {
+	background: #fcf0f1;
+	color: #8a2424;
+}
+
+.agg-badge--rejected,
+.agg-badge--expired {
+	background: #f0f0f1;
+	color: #50575e;
+}
+
+.agg-status-filter {
+	margin-bottom: 8px;
+}
+
+.agg-filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-bottom: 12px;
+}
+
+.agg-columns {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) 340px;
+	gap: 16px;
+	align-items: start;
+}
+
+@media (max-width: 1100px) {
+	.agg-columns {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+.agg-card {
+	margin-bottom: 16px;
+	padding: 4px 16px 12px;
+	border: 1px solid #dcdcde;
+	border-radius: 4px;
+	background: #fff;
+}
+
+.agg-card h3 {
+	margin: 12px 0 8px;
+	font-size: 14px;
+}
+
+.agg-request-title {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+
+.agg-summary {
+	font-size: 14px;
+	font-weight: 500;
+}
+
+.agg-summary--none {
+	color: #646970;
+	font-weight: 400;
+}
+
+.agg-diff th {
+	width: 22%;
+}
+
+.agg-diff del {
+	background: #fcf0f1;
+	color: #8a2424;
+	text-decoration: line-through;
+}
+
+.agg-diff ins {
+	background: #edfaef;
+	color: #005c12;
+	text-decoration: none;
+}
+
+.agg-text-diff table.diff {
+	width: 100%;
+}
+
+.agg-json {
+	max-height: 360px;
+	overflow: auto;
+	margin: 8px 0;
+	padding: 10px 12px;
+	border-radius: 3px;
+	background: #f6f7f7;
+	font-size: 12px;
+	line-height: 1.5;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.agg-facts {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.agg-facts th,
+.agg-facts td {
+	padding: 6px 0;
+	border-bottom: 1px solid #f0f0f1;
+	text-align: left;
+	vertical-align: top;
+}
+
+.agg-facts th {
+	width: 38%;
+	color: #50575e;
+	font-weight: 500;
+}
+
+.agg-decide .agg-reject {
+	margin-top: 8px;
+	padding-top: 8px;
+	border-top: 1px solid #f0f0f1;
+}
+
+.agg-plan-skip td {
+	color: #646970;
+}
+
+.agg-other li,
+.agg-calls li {
+	margin-bottom: 6px;
+}
+
+.agg-calls .agg-sub {
+	display: block;
+}
+
+.agg-rules td {
+	vertical-align: middle;
+}
+
+.agg-rules .regular-text {
+	width: 100%;
+}
+
+.agg-rule:has(input[name$="[remove]"]:checked) {
+	opacity: 0.45;
+}
+
+.agg-known {
+	margin: 8px 0 16px;
+}
+
+.agg-known summary {
+	cursor: pointer;
+}
+
+.agg-intro {
+	margin-bottom: 12px;
+}
