@@ -51,13 +51,39 @@ if ( ! class_exists( 'WP_Error' ) ) {
 
 if ( ! class_exists( 'WP_Post' ) ) {
 	/**
-	 * A post built from an array of fields.
+	 * A post built from an array of fields. Fields beyond the declared ones are
+	 * allowed, as on the real class, so PHP 8.2+ raises no deprecation.
 	 */
+	#[\AllowDynamicProperties]
 	class WP_Post {
 		/** @var int */
 		public $ID = 0;
+		/** @var int|string */
+		public $post_author = 0;
+		/** @var string */
+		public $post_date = '';
+		/** @var string */
+		public $post_date_gmt = '';
 		/** @var string */
 		public $post_content = '';
+		/** @var string */
+		public $post_title = '';
+		/** @var string */
+		public $post_excerpt = '';
+		/** @var string */
+		public $post_status = 'publish';
+		/** @var string */
+		public $post_name = '';
+		/** @var string */
+		public $post_modified = '';
+		/** @var string */
+		public $post_modified_gmt = '';
+		/** @var int */
+		public $post_parent = 0;
+		/** @var string */
+		public $post_type = 'post';
+		/** @var int|string */
+		public $comment_count = 0;
 
 		public function __construct( $fields = array() ) {
 			foreach ( (array) $fields as $key => $value ) {
@@ -142,15 +168,34 @@ if ( ! class_exists( 'WP_Query' ) ) {
 		public $found_posts = 0;
 
 		/**
+		 * The arguments this query was made with.
+		 *
+		 * @var array
+		 */
+		public $query_vars = array();
+
+		/**
 		 * Runs the "query".
 		 *
 		 * @param array $args Query arguments.
 		 */
 		public function __construct( array $args = array() ) {
 			self::$made[]      = $args;
+			$this->query_vars  = $args;
 			$next              = array_shift( self::$queue );
 			$this->posts       = $next['posts'] ?? array();
 			$this->found_posts = $next['found_posts'] ?? count( $this->posts );
+		}
+
+		/**
+		 * One query argument, like the real get().
+		 *
+		 * @param string $key     Argument name.
+		 * @param mixed  $default Value when the argument is not set.
+		 * @return mixed
+		 */
+		public function get( $key, $default = '' ) {
+			return $this->query_vars[ $key ] ?? $default;
 		}
 	}
 }

@@ -149,4 +149,4 @@ Small plugins that each fill one gap in WordPress, all free with no pro version:
 
 ## License
 
-[GPL-2.0-or-later](LICENSE.md) © Aryan Jasala
+Copyright Aryan Jasala. Licensed under [GPL-2.0-or-later](LICENSE.md).
