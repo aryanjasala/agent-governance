@@ -135,7 +135,7 @@ final class Privacy implements Service {
 						),
 						array(
 							'name'  => __( 'Outcome', 'agent-governance' ),
-							'value' => (string) $row['decision'],
+							'value' => Admin\Display::outcome( (string) $row['decision'] ),
 						),
 						array(
 							'name'  => __( 'IP address', 'agent-governance' ),

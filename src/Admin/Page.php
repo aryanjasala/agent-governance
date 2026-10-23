@@ -155,12 +155,30 @@ final class Page implements Service {
 	}
 
 	/**
-	 * Adds Tools > Agent Governance, with the count of waiting requests.
+	 * The label under Tools. Short, so it fits on one line with the count of
+	 * waiting requests next to it.
+	 *
+	 * @return string Plain text.
+	 */
+	public static function menu_title(): string {
+		/**
+		 * Filters the menu label under Tools. The screen keeps its title, Agent Governance.
+		 *
+		 * @param string $title Default "AI Agents".
+		 */
+		$title = trim( (string) apply_filters( 'agent_governance_menu_title', __( 'AI Agents', 'agent-governance' ) ) );
+
+		return '' !== $title ? $title : __( 'AI Agents', 'agent-governance' );
+	}
+
+	/**
+	 * Adds Tools > AI Agents, with the count of waiting requests.
 	 */
 	public function add_page(): void {
 		$count = current_user_can( Notifier::capability() ) ? $this->requests->pending_count() : 0;
 		$title = __( 'Agent Governance', 'agent-governance' );
-		$menu  = $count ? $title . sprintf( ' <span class="awaiting-mod count-%1$d"><span class="pending-count">%1$d</span></span>', $count ) : $title;
+		$label = esc_html( self::menu_title() );
+		$menu  = $count ? $label . sprintf( ' <span class="awaiting-mod count-%1$d"><span class="pending-count">%1$d</span></span>', $count ) : $label;
 
 		$hook = add_management_page( $title, $menu, Notifier::capability(), self::SLUG, array( $this, 'render' ) );
 		if ( $hook ) {

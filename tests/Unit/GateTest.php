@@ -23,6 +23,7 @@ final class GateTest extends AgentTestCase {
 		$this->options['agent_governance_settings'] = array( 'rate_limit' => 0 );
 		$this->options['blogname']                  = 'Test site';
 		Functions\when( 'get_users' )->justReturn( array( (object) array( 'user_email' => 'admin@example.com' ) ) );
+		Functions\when( 'wp_get_ability' )->justReturn( null );
 	}
 
 	/**
@@ -132,12 +133,76 @@ final class GateTest extends AgentTestCase {
 		$this->as_app_password();
 		$this->options['agent_governance_settings']['rate_limit'] = 2;
 		$this->wpdb->returns['get_var'][]                         = 2;
+		// The oldest counted call was 15 seconds ago, so a slot frees in 45.
+		$this->wpdb->returns['get_var'][] = gmdate( 'Y-m-d H:i:s', time() - 15 );
 
 		$error = $this->gate->enter( $this->call( 'readonly' ) );
 
 		$this->assertSame( 'agent_governance_rate_limited', $error->get_error_code() );
-		$this->assertSame( array( 'status' => 429 ), $error->get_error_data() );
+		$this->assertSame( 429, $error->get_error_data()['status'] );
+		$this->assertEqualsWithDelta( 45, $error->get_error_data()['retry_after'], 1 );
 		$this->assertStringContainsString( '2 calls per minute', $error->get_error_message() );
+		$this->assertMatchesRegularExpression( '/Try again in 4[4-6] seconds/', $error->get_error_message() );
+	}
+
+	public function test_retry_after_stays_within_a_minute(): void {
+		$this->wpdb->returns['get_var'] = array( null, gmdate( 'Y-m-d H:i:s', time() - 300 ), gmdate( 'Y-m-d H:i:s', time() + 300 ) );
+
+		$this->assertSame( 60, $this->log->retry_after( 'app:x' ), 'No counted call: a full minute.' );
+		$this->assertSame( 1, $this->log->retry_after( 'app:x' ), 'Never less than a second.' );
+		$this->assertSame( 60, $this->log->retry_after( 'app:x' ), 'Never more than a minute.' );
+	}
+
+	public function test_a_call_another_plugin_refused_is_logged_as_refused(): void {
+		$this->as_app_password();
+		$error = new \WP_Error( 'site_read_only_mode', 'This site is frozen.', array( 'status' => 423 ) );
+		Actions\expectDone( 'agent_governance_call_refused' )->once()->with( Mockery::type( 'array' ), Mockery::type( 'array' ), $error );
+
+		$id = $this->gate->refused( $this->call( 'destructive' ), $error );
+
+		$this->assertGreaterThan( 0, $id );
+		$row = $this->wpdb->rows( 'log' )[0];
+		$this->assertSame( 'refused', $row['decision'] );
+		$this->assertSame( 'site_read_only_mode', $row['reason'] );
+		$this->assertSame( 'site_read_only_mode', $row['result'] );
+		$this->assertSame( 'my/save', $row['target'] );
+		$this->assertSame( 'app:aaaa-1111', $row['identity'] );
+		$this->assertStringContainsString( '[redacted]', $row['input'] );
+	}
+
+	public function test_a_refused_call_that_is_not_an_agents_is_not_logged(): void {
+		Actions\expectDone( 'agent_governance_call_refused' )->never();
+
+		$this->assertSame( 0, $this->gate->refused( $this->call(), new \WP_Error( 'site_read_only_mode', 'Frozen.' ) ) );
+		$this->assertSame( array(), $this->wpdb->inserted );
+	}
+
+	public function test_an_allowed_call_another_plugin_refuses_from_inside_is_logged_as_refused(): void {
+		$this->as_app_password();
+
+		$frame = $this->gate->enter( $this->call() );
+		$this->gate->leave( $frame, new \WP_Error( 'site_read_only_mode', 'Frozen.' ) );
+
+		$row = $this->wpdb->rows( 'log' )[0];
+		$this->assertSame( 'refused', $row['decision'] );
+		$this->assertSame( 'site_read_only_mode', $row['reason'] );
+	}
+
+	public function test_the_refusal_codes_filter(): void {
+		$this->assertSame( array( 'site_read_only_mode' ), Gate::refusal_codes() );
+
+		Filters\expectApplied( 'agent_governance_refusal_codes' )->once()->andReturn( array( 'my_freeze', '', 3 ) );
+		$this->assertSame( array( 'my_freeze', '3' ), Gate::refusal_codes() );
+	}
+
+	public function test_an_approved_ability_keeps_the_method_the_agent_used(): void {
+		$this->context->begin_replay( $this->request_row( array( 'target' => 'my/save', 'method' => 'POST' ) ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		$call           = $this->call( 'destructive' );
+		$call['method'] = '';
+
+		$this->gate->leave( $this->gate->enter( $call ), array( 'done' => true ) );
+
+		$this->assertSame( 'POST', $this->wpdb->rows( 'log' )[0]['method'] );
 	}
 
 	public function test_a_held_call_is_queued_with_its_preview_and_the_agent_gets_202(): void {

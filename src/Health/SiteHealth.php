@@ -8,6 +8,7 @@
 namespace AryanX\AgentGovernance\Health;
 
 use AryanX\AgentGovernance\Admin\Page;
+use AryanX\AgentGovernance\Capability;
 use AryanX\AgentGovernance\Notifier;
 use AryanX\AgentGovernance\Requests;
 use AryanX\AgentGovernance\Schema;
@@ -20,8 +21,9 @@ defined( 'ABSPATH' ) || exit;
  * Adds an Agent Governance test to Tools > Site Health.
  *
  * Critical when the tables are missing, since every agent call then goes
- * unrecorded. Recommended when nobody can approve held calls, when calls have
- * waited over an hour, or when agent writes are paused.
+ * unrecorded, and when no role has the approver capability. Recommended when
+ * no user can approve held calls, when calls have waited over an hour, or when
+ * agent writes are paused.
  */
 final class SiteHealth implements Service {
 
@@ -85,6 +87,20 @@ final class SiteHealth implements Service {
 			return self::result( 'critical', __( 'Agent calls are not being recorded', 'agent-governance' ), __( 'The Agent Governance tables are missing, so agent calls cannot be logged or held for approval. Deactivate and activate the plugin to create them.', 'agent-governance' ), $actions );
 		}
 
+		if ( ! Capability::granted() ) {
+			return self::result(
+				'critical',
+				__( 'No role can approve agent calls', 'agent-governance' ),
+				sprintf(
+					/* translators: 1: capability name, 2: fallback capability name. */
+					__( 'No role has the %1$s capability any more, for example because a role clean-up removed it. Until a role has it again, anyone with the %2$s capability approves held agent calls. Give it back from the notice in wp-admin or with wp agent-governance restore-capability.', 'agent-governance' ),
+					Notifier::capability(),
+					Capability::fallback()
+				),
+				$actions
+			);
+		}
+
 		$approvers = get_users(
 			array(
 				'capability' => Notifier::capability(),
@@ -93,7 +109,13 @@ final class SiteHealth implements Service {
 			)
 		);
 		if ( ! $approvers ) {
-			return self::result( 'recommended', __( 'Nobody can approve agent calls', 'agent-governance' ), __( 'No user has the capability to approve held agent calls, so they wait until they expire. Give the agent_governance_approve capability to a role.', 'agent-governance' ), $actions );
+			return self::result(
+				'recommended',
+				__( 'Nobody can approve agent calls', 'agent-governance' ),
+				/* translators: %s: capability name. */
+				sprintf( __( 'No user has the capability to approve held agent calls, so they wait until they expire. Give a user a role with the %s capability.', 'agent-governance' ), Notifier::capability() ),
+				$actions
+			);
 		}
 
 		$oldest = $this->requests->oldest_pending();

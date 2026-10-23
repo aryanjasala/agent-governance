@@ -73,7 +73,8 @@ final class RequestsView {
 		foreach ( $filters as $key => $label ) {
 			$links[] = sprintf( '<li><a href="%1$s"%2$s>%3$s</a>', esc_url( Page::url( 'requests', array( 'status' => $key ) ) ), $key === $status ? ' class="current" aria-current="page"' : '', esc_html( $label ) );
 		}
-		echo implode( ' | </li>', $links ) . '</li>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above.
+		// As core's list tables: the bar inside the item, a space between items, so it reads "Waiting | Executed".
+		echo implode( " |</li>\n", $links ) . '</li>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above.
 		echo '</ul>';
 
 		$found = $this->requests->query(
@@ -84,8 +85,16 @@ final class RequestsView {
 			)
 		);
 
-		echo '<table class="widefat striped agg-table agg-requests"><thead><tr>';
-		foreach ( array( __( 'Request', 'agent-governance' ), __( 'Agent', 'agent-governance' ), __( 'What it would do', 'agent-governance' ), __( 'Asked', 'agent-governance' ), __( 'Status', 'agent-governance' ) ) as $heading ) {
+		$columns = array(
+			'request' => __( 'Request', 'agent-governance' ),
+			'agent'   => __( 'Agent', 'agent-governance' ),
+			'preview' => __( 'What it does', 'agent-governance' ),
+			'asked'   => __( 'Asked', 'agent-governance' ),
+			'status'  => __( 'Status', 'agent-governance' ),
+		);
+
+		echo '<table class="widefat striped agg-table agg-stack agg-requests"><thead><tr>';
+		foreach ( $columns as $heading ) {
 			echo '<th scope="col">' . esc_html( $heading ) . '</th>';
 		}
 		echo '</tr></thead><tbody>';
@@ -98,14 +107,19 @@ final class RequestsView {
 			$preview = json_decode( (string) $row['dry_run'], true );
 			$status  = Requests::is_overdue( $row ) ? Requests::EXPIRED : (string) $row['status'];
 			printf(
-				'<tr data-request="%1$d"><td><a class="row-title" href="%2$s">#%1$d</a> %3$s</td><td>%4$s</td><td>%5$s</td><td>%6$s</td><td>%7$s</td></tr>',
+				'<tr data-request="%1$d"><td data-colname="%8$s"><a class="row-title" href="%2$s">#%1$d</a> %3$s</td><td data-colname="%9$s">%4$s</td><td data-colname="%10$s">%5$s</td><td data-colname="%11$s">%6$s</td><td data-colname="%12$s">%7$s</td></tr>',
 				(int) $row['id'],
 				esc_url( Page::request_url( (int) $row['id'] ) ),
 				Display::call( $row ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 				esc_html( Log::identity_label( $row ) ),
-				esc_html( is_array( $preview ) ? (string) ( $preview['summary'] ?? '' ) : '' ),
+				esc_html( self::summary( is_array( $preview ) ? $preview : array() ) ),
 				Display::time( (string) $row['created'] ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
-				Display::badge( $status ) // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
+				Display::badge( $status ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
+				esc_attr( $columns['request'] ),
+				esc_attr( $columns['agent'] ),
+				esc_attr( $columns['preview'] ),
+				esc_attr( $columns['asked'] ),
+				esc_attr( $columns['status'] )
 			);
 		}
 		echo '</tbody></table>';
@@ -130,13 +144,14 @@ final class RequestsView {
 		$decider = $row['decided_by'] ? get_userdata( (int) $row['decided_by'] ) : false;
 		$user    = get_userdata( (int) $row['user_id'] );
 
-		printf( '<p><a href="%s">&larr; %s</a></p>', esc_url( Page::url( 'requests' ) ), esc_html__( 'All requests', 'agent-governance' ) );
+		printf( '<p><a href="%1$s">%2$s %3$s</a></p>', esc_url( Page::url( 'requests' ) ), Display::back_arrow(), esc_html__( 'All requests', 'agent-governance' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- An HTML entity from Display.
 		printf( '<h2 class="agg-request-title">%1$s %2$s</h2>', esc_html( sprintf( /* translators: %d: request ID. */ __( 'Request #%d', 'agent-governance' ), $id ) ), Display::badge( $status ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 
 		echo '<div class="agg-columns"><div class="agg-main">';
 
-		echo '<div class="agg-card agg-preview"><h3>' . esc_html__( 'What it would change', 'agent-governance' ) . '</h3>';
-		$this->render_preview( is_array( $preview ) ? $preview : array() );
+		$pending = Requests::PENDING === $status;
+		echo '<div class="agg-card agg-preview"><h3>' . esc_html( $pending ? __( 'What it would change', 'agent-governance' ) : __( 'What it was asked to change', 'agent-governance' ) ) . '</h3>';
+		$this->render_preview( is_array( $preview ) ? $preview : array(), $pending );
 		echo '</div>';
 
 		echo '<div class="agg-card"><h3>' . esc_html__( 'Input', 'agent-governance' ) . '</h3>';
@@ -156,7 +171,7 @@ final class RequestsView {
 		$facts = array(
 			__( 'Agent', 'agent-governance' )        => esc_html( Log::identity_label( $row ) ),
 			__( 'Signed in as', 'agent-governance' ) => esc_html( $user ? $user->user_login : '#' . (int) $row['user_id'] ),
-			__( 'Through', 'agent-governance' )      => esc_html( (string) $row['via'] ),
+			__( 'Through', 'agent-governance' )      => esc_html( Display::via( (string) $row['via'] ) ),
 			__( 'Call', 'agent-governance' )         => Display::call( $row ),
 			__( 'Kind', 'agent-governance' )         => esc_html( Display::kind( (string) $row['kind'] ) ),
 			__( 'Asked', 'agent-governance' )        => Display::time( (string) $row['created'] ),
@@ -185,17 +200,35 @@ final class RequestsView {
 	}
 
 	/**
+	 * The preview's summary, without the advice to check the input that requests
+	 * held by version 1.0.0 stored in it.
+	 *
+	 * @param array $preview Stored preview.
+	 * @return string
+	 */
+	public static function summary( array $preview ): string {
+		$summary = (string) ( $preview['summary'] ?? '' );
+		$advice  = ' ' . __( 'Check the input below before you approve it.', 'agent-governance' );
+
+		return substr( $summary, -strlen( $advice ) ) === $advice ? substr( $summary, 0, -strlen( $advice ) ) : $summary;
+	}
+
+	/**
 	 * The preview: summary, the object and the field changes.
 	 *
 	 * @param array $preview Stored preview.
+	 * @param bool  $pending Whether the request still waits for a decision.
 	 */
-	private function render_preview( array $preview ): void {
+	private function render_preview( array $preview, bool $pending = true ): void {
 		if ( ! empty( $preview['_truncated'] ) ) {
 			echo '<p>' . esc_html__( 'The preview was too big to store.', 'agent-governance' ) . '</p>';
 			return;
 		}
 
-		printf( '<p class="agg-summary%1$s">%2$s</p>', empty( $preview['supported'] ) ? ' agg-summary--none' : '', esc_html( (string) ( $preview['summary'] ?? '' ) ) );
+		printf( '<p class="agg-summary%1$s">%2$s</p>', empty( $preview['supported'] ) ? ' agg-summary--none' : '', esc_html( self::summary( $preview ) ) );
+		if ( empty( $preview['supported'] ) && $pending ) {
+			echo '<p class="description agg-check-input">' . esc_html__( 'Check the input below before you approve it.', 'agent-governance' ) . '</p>';
+		}
 
 		if ( ! empty( $preview['object']['url'] ) ) {
 			printf( '<p><a href="%1$s">%2$s</a></p>', esc_url( (string) $preview['object']['url'] ), esc_html( sprintf( /* translators: %s: item name. */ __( 'Open "%s"', 'agent-governance' ), (string) $preview['object']['label'] ) ) );
@@ -212,11 +245,11 @@ final class RequestsView {
 			$after  = (string) ( $change['after'] ?? '' );
 			if ( strlen( $before ) > 120 || strlen( $after ) > 120 || false !== strpos( $before . $after, "\n" ) ) {
 				$diff = wp_text_diff( $before, $after, array( 'show_split_view' => true ) );
-				printf( '<tr><th scope="row">%1$s</th><td colspan="2" class="agg-text-diff">%2$s</td></tr>', esc_html( (string) $change['field'] ), $diff ? wp_kses_post( $diff ) : esc_html__( 'No visible change.', 'agent-governance' ) );
+				printf( '<tr><th scope="row">%1$s</th><td colspan="2" class="agg-text-diff" dir="ltr">%2$s</td></tr>', esc_html( (string) $change['field'] ), $diff ? wp_kses_post( $diff ) : esc_html__( 'No visible change.', 'agent-governance' ) );
 				continue;
 			}
 			printf(
-				'<tr><th scope="row">%1$s</th><td><del>%2$s</del></td><td><ins>%3$s</ins></td></tr>',
+				'<tr><th scope="row">%1$s</th><td dir="auto"><del>%2$s</del></td><td dir="auto"><ins>%3$s</ins></td></tr>',
 				esc_html( (string) $change['field'] ),
 				'' === $before ? '<em>' . esc_html__( 'empty', 'agent-governance' ) . '</em>' : esc_html( $before ),
 				'' === $after ? '<em>' . esc_html__( 'empty', 'agent-governance' ) . '</em>' : esc_html( $after )

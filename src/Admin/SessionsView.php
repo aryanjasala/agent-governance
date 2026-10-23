@@ -59,10 +59,21 @@ final class SessionsView {
 
 		$sessions = $this->log->sessions( array( 'limit' => Page::per_page() ) );
 
-		echo '<table class="widefat striped agg-table agg-sessions"><thead><tr>';
-		foreach ( array( __( 'Agent', 'agent-governance' ), __( 'Started', 'agent-governance' ), __( 'Last call', 'agent-governance' ), __( 'Calls', 'agent-governance' ), __( 'Writes', 'agent-governance' ), __( 'Rolled back', 'agent-governance' ), '' ) as $heading ) {
+		$columns = array(
+			'agent'       => __( 'Agent', 'agent-governance' ),
+			'started'     => __( 'Started', 'agent-governance' ),
+			'last'        => __( 'Last call', 'agent-governance' ),
+			'calls'       => __( 'Calls', 'agent-governance' ),
+			'writes'      => __( 'Writes', 'agent-governance' ),
+			'rolled_back' => __( 'Rolled back', 'agent-governance' ),
+		);
+
+		echo '<table class="widefat striped agg-table agg-stack agg-sessions"><thead><tr>';
+		foreach ( $columns as $heading ) {
 			echo '<th scope="col">' . esc_html( $heading ) . '</th>';
 		}
+		// The last column only holds the Review button, so its heading is for screen readers.
+		echo '<th scope="col"><span class="screen-reader-text">' . esc_html__( 'Actions', 'agent-governance' ) . '</span></th>';
 		echo '</tr></thead><tbody>';
 
 		if ( ! $sessions ) {
@@ -71,7 +82,7 @@ final class SessionsView {
 
 		foreach ( $sessions as $row ) {
 			printf(
-				'<tr><td>%1$s</td><td>%2$s</td><td>%3$s</td><td>%4$d</td><td>%5$d</td><td>%6$s</td><td><a class="button" href="%7$s">%8$s</a></td></tr>',
+				'<tr><td data-colname="%9$s">%1$s</td><td data-colname="%10$s">%2$s</td><td data-colname="%11$s">%3$s</td><td data-colname="%12$s">%4$d</td><td data-colname="%13$s">%5$d</td><td data-colname="%14$s">%6$s</td><td><a class="button" href="%7$s">%8$s</a></td></tr>',
 				esc_html( Log::identity_label( $row ) ),
 				Display::time( (string) $row['first'] ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 				Display::time( (string) $row['last'] ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
@@ -79,7 +90,13 @@ final class SessionsView {
 				(int) $row['writes'],
 				$row['rolled_back'] ? Display::time( (string) $row['rolled_back'] ) : '&ndash;', // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 				esc_url( Page::url( 'sessions', array( 'session' => (string) $row['session'] ) ) ),
-				esc_html__( 'Review', 'agent-governance' )
+				esc_html__( 'Review', 'agent-governance' ),
+				esc_attr( $columns['agent'] ),
+				esc_attr( $columns['started'] ),
+				esc_attr( $columns['last'] ),
+				esc_attr( $columns['calls'] ),
+				esc_attr( $columns['writes'] ),
+				esc_attr( $columns['rolled_back'] )
 			);
 		}
 		echo '</tbody></table>';
@@ -93,7 +110,7 @@ final class SessionsView {
 	private function render_one( string $session ): void {
 		$rows = $this->log->session_rows( $session );
 
-		printf( '<p><a href="%s">&larr; %s</a></p>', esc_url( Page::url( 'sessions' ) ), esc_html__( 'All sessions', 'agent-governance' ) );
+		printf( '<p><a href="%1$s">%2$s %3$s</a></p>', esc_url( Page::url( 'sessions' ) ), Display::back_arrow(), esc_html__( 'All sessions', 'agent-governance' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- An HTML entity from Display.
 		if ( ! $rows ) {
 			echo '<p>' . esc_html__( 'No calls in this session.', 'agent-governance' ) . '</p>';
 			return;

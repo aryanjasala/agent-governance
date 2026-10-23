@@ -44,6 +44,9 @@ abstract class AgentTestCase extends TestCase {
 	/** @var array<string, bool> Capabilities of the current user. */
 	protected $caps = array();
 
+	/** @var \Agg_Fake_Roles The site's roles. */
+	protected $roles;
+
 	protected Settings $settings;
 	protected Context $context;
 	protected Classifier $classifier;
@@ -173,6 +176,33 @@ abstract class AgentTestCase extends TestCase {
 		);
 
 		Functions\when( 'rest_get_authenticated_app_password' )->justReturn( '' );
+
+		$this->roles = new \Agg_Fake_Roles();
+		$this->roles->add(
+			'administrator',
+			'Administrator',
+			array(
+				'manage_options'           => true,
+				'agent_governance_approve' => true,
+			)
+		);
+		$this->roles->add( 'editor', 'Editor', array( 'edit_posts' => true ) );
+		Functions\when( 'wp_roles' )->alias(
+			function () {
+				return $this->roles;
+			}
+		);
+		Functions\when( 'translate_user_role' )->returnArg( 1 );
+		Functions\when( 'get_post_status_object' )->alias(
+			static function ( $status ) {
+				$labels = array(
+					'publish' => 'Published',
+					'draft'   => 'Draft',
+					'trash'   => 'Trash',
+				);
+				return isset( $labels[ $status ] ) ? (object) array( 'label' => $labels[ $status ] ) : null;
+			}
+		);
 
 		$this->build();
 	}

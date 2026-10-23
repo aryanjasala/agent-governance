@@ -57,7 +57,7 @@ final class PoliciesView {
 		echo '<h2>' . esc_html__( 'Rules', 'agent-governance' ) . '</h2>';
 		echo '<p class="description">' . esc_html__( 'The first matching rule wins, checking rules for the agent first, then its user, then its role, then every agent. Patterns match ability names or REST routes: * matches anything. Start a pattern with a method to match only REST calls with it, such as "DELETE /wp/v2/*".', 'agent-governance' ) . '</p>';
 
-		echo '<table class="widefat agg-rules"><thead><tr><th scope="col">' . esc_html__( 'Applies to', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Which one', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Ability or route', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Then', 'agent-governance' ) . '</th><th scope="col"><span class="screen-reader-text">' . esc_html__( 'Remove', 'agent-governance' ) . '</span></th></tr></thead><tbody>';
+		echo '<table class="widefat agg-stack agg-rules"><thead><tr><th scope="col">' . esc_html__( 'Applies to', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Which one', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Ability or route', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Then', 'agent-governance' ) . '</th><th scope="col"><span class="screen-reader-text">' . esc_html__( 'Remove', 'agent-governance' ) . '</span></th></tr></thead><tbody>';
 		$index = 0;
 		foreach ( $this->settings->rules() as $rule ) {
 			$this->rule_row( $index++, $rule );
@@ -153,12 +153,12 @@ final class PoliciesView {
 		);
 		$name   = 'rules[' . $index . ']';
 
-		printf( '<tr class="agg-rule%1$s" data-index="%2$d"><td><input type="hidden" name="%3$s[id]" value="%4$s"><select name="%3$s[scope]" aria-label="%5$s">', $template ? ' agg-rule--new' : '', (int) $index, esc_attr( $name ), esc_attr( (string) ( $rule['id'] ?? '' ) ), esc_attr__( 'Applies to', 'agent-governance' ) );
+		printf( '<tr class="agg-rule%1$s" data-index="%2$d"><td data-colname="%5$s"><input type="hidden" name="%3$s[id]" value="%4$s"><select name="%3$s[scope]" aria-label="%5$s">', $template ? ' agg-rule--new' : '', (int) $index, esc_attr( $name ), esc_attr( (string) ( $rule['id'] ?? '' ) ), esc_attr__( 'Applies to', 'agent-governance' ) );
 		foreach ( $scopes as $value => $label ) {
 			printf( '<option value="%1$s"%2$s>%3$s</option>', esc_attr( $value ), selected( $value, $rule['scope'] ?? 'default', false ), esc_html( $label ) );
 		}
 		printf(
-			'</select></td><td><input type="text" name="%1$s[subject]" value="%2$s" placeholder="%3$s" aria-label="%4$s" class="regular-text agg-subject"></td><td><input type="text" name="%1$s[pattern]" value="%5$s" placeholder="%6$s" aria-label="%7$s" class="regular-text code"></td><td><select name="%1$s[action]" aria-label="%8$s">',
+			'</select></td><td data-colname="%4$s"><input type="text" name="%1$s[subject]" value="%2$s" placeholder="%3$s" aria-label="%4$s" class="regular-text agg-subject"></td><td data-colname="%7$s"><input type="text" name="%1$s[pattern]" value="%5$s" placeholder="%6$s" aria-label="%7$s" class="regular-text code" dir="ltr"></td><td data-colname="%8$s"><select name="%1$s[action]" aria-label="%8$s">',
 			esc_attr( $name ),
 			esc_attr( (string) ( $rule['subject'] ?? '' ) ),
 			esc_attr__( 'UUID, user or role', 'agent-governance' ),

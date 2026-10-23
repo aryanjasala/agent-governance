@@ -207,6 +207,14 @@ class Agg_Ability_Double {
 		return $this->meta;
 	}
 
+	public function get_label() {
+		return 'Test ability';
+	}
+
+	public function get_description() {
+		return 'Does a thing for the tests.';
+	}
+
 	public function normalize_input( $input = null ) {
 		return null === $this->normalized ? $input : $this->normalized;
 	}
@@ -282,5 +290,56 @@ if ( ! class_exists( 'WP_Term' ) ) {
 		public $count = 0;
 		/** @var string */
 		public $taxonomy = '';
+	}
+}
+
+/**
+ * A role, as WP_Role keeps its capabilities.
+ */
+class Agg_Fake_Role {
+
+	/** @var string */
+	public $name = '';
+
+	/** @var array<string, bool> */
+	public $capabilities = array();
+
+	public function __construct( $name, array $capabilities = array() ) {
+		$this->name         = $name;
+		$this->capabilities = $capabilities;
+	}
+
+	public function has_cap( $cap ) {
+		return ! empty( $this->capabilities[ $cap ] );
+	}
+
+	public function add_cap( $cap, $grant = true ) {
+		$this->capabilities[ $cap ] = $grant;
+	}
+
+	public function remove_cap( $cap ) {
+		unset( $this->capabilities[ $cap ] );
+	}
+}
+
+/**
+ * The roles, as wp_roles() returns them.
+ */
+class Agg_Fake_Roles {
+
+	/** @var array<string, Agg_Fake_Role> */
+	public $role_objects = array();
+
+	/** @var array<string, string> */
+	public $role_names = array();
+
+	public function add( $name, $label, array $capabilities = array() ) {
+		$this->role_objects[ $name ] = new Agg_Fake_Role( $name, $capabilities );
+		$this->role_names[ $name ]   = $label;
+		return $this->role_objects[ $name ];
+	}
+
+	public function get_role( $name ) {
+		return $this->role_objects[ $name ] ?? null;
 	}
 }

@@ -8,10 +8,12 @@
 namespace AryanX\AgentGovernance\Cli;
 
 use AryanX\AgentGovernance\Approvals;
+use AryanX\AgentGovernance\Capability;
 use AryanX\AgentGovernance\Cleanup;
 use AryanX\AgentGovernance\Log;
 use AryanX\AgentGovernance\Requests;
 use AryanX\AgentGovernance\Rollback;
+use AryanX\AgentGovernance\Schema;
 use AryanX\AgentGovernance\Settings;
 
 defined( 'ABSPATH' ) || exit;
@@ -98,6 +100,7 @@ final class Command {
 	 *   - held
 	 *   - executed
 	 *   - failed
+	 *   - refused
 	 * ---
 	 *
 	 * [--session=<session>]
@@ -639,6 +642,26 @@ final class Command {
 			\WP_CLI::success( 'Settings saved.' );
 		}
 		self::format( $assoc_args, array( $data ), array_keys( $data ) );
+	}
+
+	/**
+	 * Gives the approver capability back to the approver roles (Administrator by
+	 * default), after something took it off every role.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp agent-governance restore-capability
+	 *
+	 * @subcommand restore-capability
+	 */
+	public function restore_capability(): void {
+		$roles = Capability::restore( get_current_user_id() );
+		if ( ! $roles ) {
+			\WP_CLI::warning( 'The approver roles already have the capability, or none of them exist.' );
+			return;
+		}
+
+		\WP_CLI::success( sprintf( 'Gave %1$s to %2$s.', Schema::CAPABILITY, implode( ', ', $roles ) ) );
 	}
 
 	/**

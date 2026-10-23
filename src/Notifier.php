@@ -59,7 +59,9 @@ final class Notifier implements Service {
 		 * Filters the capability that may approve, reject and roll back agent calls
 		 * and see the activity log.
 		 *
-		 * @param string $capability Default agent_governance_approve, given to administrators on activation.
+		 * @param string $capability Default agent_governance_approve, given to administrators
+		 *                           on activation. While no role has it, manage_options
+		 *                           stands in (agent_governance_fallback_capability).
 		 */
 		$cap = (string) apply_filters( 'agent_governance_approver_capability', Schema::CAPABILITY );
 
@@ -75,7 +77,8 @@ final class Notifier implements Service {
 	public function recipients( array $request ): array {
 		$users = get_users(
 			array(
-				'capability' => self::capability(),
+				// While no role has the approver capability, whoever stands in for it.
+				'capability' => Capability::effective(),
 				'fields'     => array( 'user_email' ),
 				'number'     => 50,
 			)
@@ -89,7 +92,8 @@ final class Notifier implements Service {
 		/**
 		 * Filters who is emailed when an agent call is held for approval.
 		 *
-		 * @param string[] $emails  Default every user with the approver capability, at most 50.
+		 * @param string[] $emails  Default every user with the approver capability (or the
+		 *                          fallback capability while no role has it), at most 50.
 		 * @param array    $request The request row.
 		 */
 		$emails = (array) apply_filters( 'agent_governance_notify_recipients', $emails, $request );

@@ -55,10 +55,64 @@ final class Schema {
 	}
 
 	/**
-	 * Deactivation: stops the schedule. Data stays until uninstall.
+	 * Deactivation: stops the schedule and takes the approver capability off
+	 * every role, so nothing is left on a role while the plugin is off. The
+	 * tables, settings and log stay until uninstall. The stored version goes
+	 * too, so the next activation (or the first request on each site of a
+	 * network) sets the capability up again.
+	 *
+	 * @param bool $network_wide Whether it was network deactivated.
 	 */
-	public static function deactivate(): void {
+	public static function deactivate( $network_wide = false ): void {
+		if ( $network_wide && is_multisite() ) {
+			$offset = 0;
+			do {
+				$sites = get_sites(
+					array(
+						'fields' => 'ids',
+						'number' => 100,
+						'offset' => $offset,
+					)
+				);
+				foreach ( $sites as $site ) {
+					switch_to_blog( (int) $site );
+					self::deactivate_site();
+					restore_current_blog();
+				}
+				$offset += 100;
+			} while ( $sites );
+			return;
+		}
+
+		self::deactivate_site();
+	}
+
+	/**
+	 * Deactivation on the current site.
+	 */
+	public static function deactivate_site(): void {
 		wp_clear_scheduled_hook( self::CRON_HOOK );
+
+		/**
+		 * Filters whether deactivating takes the approver capability off every role.
+		 *
+		 * Activating gives it back to the approver roles.
+		 *
+		 * @param bool $remove Default true.
+		 */
+		if ( ! apply_filters( 'agent_governance_remove_capability_on_deactivate', true ) ) {
+			return;
+		}
+
+		$roles = Capability::revoke();
+		delete_option( self::DB_VERSION_OPTION );
+
+		/**
+		 * Fires after deactivating took the approver capability off the roles that had it.
+		 *
+		 * @param string[] $roles Roles that had it.
+		 */
+		do_action( 'agent_governance_capability_removed', $roles );
 	}
 
 	/**
@@ -94,7 +148,8 @@ final class Schema {
 	 */
 	public static function approver_roles(): array {
 		/**
-		 * Filters the roles that get the approver capability on activation.
+		 * Filters the roles that get the approver capability on activation, and
+		 * from the "Give it back" button when no role has it.
 		 *
 		 * @param string[] $roles Role names. Default administrator.
 		 */
@@ -107,12 +162,7 @@ final class Schema {
 	 * Adds the approver capability to the approver roles.
 	 */
 	public static function grant_capability(): void {
-		foreach ( self::approver_roles() as $name ) {
-			$role = get_role( $name );
-			if ( $role && ! $role->has_cap( self::CAPABILITY ) ) {
-				$role->add_cap( self::CAPABILITY );
-			}
-		}
+		Capability::grant();
 	}
 
 	/**

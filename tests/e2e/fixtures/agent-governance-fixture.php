@@ -97,6 +97,23 @@ add_action(
 			)
 		);
 
+		// A destructive ability that gives no preview of its own.
+		wp_register_ability(
+			'agg-fixture/forget-note',
+			array(
+				'label'               => 'Forget a note',
+				'description'         => 'Removes the note saved on a post.',
+				'category'            => 'agg-fixture',
+				'input_schema'        => $post_input,
+				'output_schema'       => array( 'type' => 'object' ),
+				'execute_callback'    => static function ( $input ) {
+					return array( 'forgotten' => delete_post_meta( (int) $input['id'], 'agg_note' ) );
+				},
+				'permission_callback' => $can_edit,
+				'meta'                => $meta( array( 'readonly' => false, 'destructive' => true, 'idempotent' => false ) ),
+			)
+		);
+
 		wp_register_ability(
 			'agg-fixture/trash-post',
 			array(

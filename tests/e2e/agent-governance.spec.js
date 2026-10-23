@@ -4,6 +4,20 @@ const { BASE_URL, COMPOSE_DIR } = require( './utils/config' );
 
 const SCREEN = '/wp-admin/tools.php?page=agent-governance';
 const MCP_ADAPTER = 'https://github.com/WordPress/mcp-adapter/releases/download/v0.7.1/mcp-adapter.zip';
+const READ_ONLY_MODE = 'https://github.com/aryanjasala/site-read-only-mode/releases/download/v2.0.1/site-read-only-mode.zip';
+
+/** Application passwords this suite made, removed again at the end. */
+const madePasswords = new Set();
+
+/** Whether a WP-CLI command succeeds. */
+const succeeds = ( ...args ) => {
+	try {
+		wp( ...args );
+		return true;
+	} catch ( error ) {
+		return false;
+	}
+};
 
 /** Runs SQL and returns the rows as arrays of strings. */
 const sql = ( query ) =>
@@ -36,6 +50,7 @@ async function agent( pw, name ) {
 	}
 	const password = wp( 'user', 'application-password', 'create', 'admin', name, '--porcelain' );
 	const uuid = wp( 'user', 'application-password', 'list', 'admin', `--name=${ name }`, '--field=uuid' );
+	madePasswords.add( uuid );
 	const context = await pw.newContext( {
 		baseURL: BASE_URL,
 		storageState: { cookies: [], origins: [] },
@@ -86,6 +101,35 @@ test.describe( 'Agent Governance', () => {
 
 	test.beforeEach( () => reset() );
 
+	// Leave the site as the suite found it: no fixture, no application passwords, no settings, and the
+	// approver capability on Administrator.
+	test.afterAll( () => {
+		for ( const name of [ 'agent_governance_settings', 'agent_governance_rules', 'agg_fixture_mail' ] ) {
+			succeeds( 'option', 'delete', name );
+		}
+		for ( const uuid of madePasswords ) {
+			succeeds( 'user', 'application-password', 'delete', 'admin', uuid );
+		}
+		madePasswords.clear();
+		wpEval( '@unlink( WPMU_PLUGIN_DIR . "/agent-governance-fixture.php" );' );
+		succeeds( 'cap', 'add', 'administrator', 'agent_governance_approve' );
+	} );
+
+	test( 'an admin running a destructive ability in the browser is not held', async ( { rest } ) => {
+		const id = newPost( 'Mine to trash' );
+		const requestsBefore = Number( one( 'SELECT COUNT(*) FROM wp_agent_governance_requests' ) );
+		const logBefore = Number( one( 'SELECT COUNT(*) FROM wp_agent_governance_log' ) );
+
+		// The cookie and a REST nonce, the way wp-admin and the other plugins' screens call abilities.
+		const response = await rest( 'POST', '/wp-abilities/v1/abilities/agg-fixture/trash-post/run', { input: { id } } );
+
+		expect( response.status ).toBe( 200 );
+		expect( response.body ).toEqual( { trashed: true } );
+		expect( post( id, 'post_status' ) ).toBe( 'trash' );
+		expect( Number( one( 'SELECT COUNT(*) FROM wp_agent_governance_requests' ) ) ).toBe( requestsBefore );
+		expect( Number( one( 'SELECT COUNT(*) FROM wp_agent_governance_log' ) ) ).toBe( logBefore );
+	} );
+
 	test( 'a destructive ability is held, approved in wp-admin, and the agent gets the result', async ( { page, playwright } ) => {
 		const bot = await agent( playwright.request, 'approval-bot' );
 		const id = newPost( 'Spring sale' );
@@ -108,8 +152,16 @@ test.describe( 'Agent Governance', () => {
 		// The approver sees the badge, the request and its preview.
 		await page.goto( '/wp-admin/' );
 		await expect( page.locator( '.agg-notice' ) ).toContainText( 'waiting for your approval' );
+		await page.setViewportSize( { width: 1280, height: 900 } );
 		await page.goto( SCREEN );
-		await expect( page.locator( '#adminmenu a[href="tools.php?page=agent-governance"] .pending-count' ) ).toHaveText( '1' );
+		const menu = page.locator( '#adminmenu a[href="tools.php?page=agent-governance"]' );
+		await expect( menu.locator( '.pending-count' ) ).toHaveText( '1' );
+		await expect( menu ).toContainText( 'AI Agents' );
+		// The label and the count fit on one line, like the other Tools items.
+		const height = ( await menu.boundingBox() ).height;
+		const single = ( await page.locator( '#menu-tools .wp-submenu a[href="tools.php"]' ).boundingBox() ).height;
+		expect( height ).toBeLessThanOrEqual( single + 2 );
+		await expect( page.locator( '.agg-status-filter' ) ).toContainText( 'Waiting | Executed | Failed', { useInnerText: true } );
 		const row = page.locator( `tr[data-request="${ requestId }"]` );
 		await expect( row ).toContainText( 'Moves "Spring sale" to the trash.' );
 		await expect( row ).toContainText( 'approval-bot (admin)' );
@@ -122,6 +174,9 @@ test.describe( 'Agent Governance', () => {
 		await page.getByRole( 'button', { name: 'Approve and run' } ).click();
 		await expect( page.locator( '.notice-success' ) ).toContainText( 'Approved. The call ran.' );
 		await expect( page.locator( '.agg-request-title .agg-badge' ) ).toHaveText( 'Executed' );
+		await expect( page.locator( '.agg-facts' ) ).toContainText( 'Application password' );
+		await expect( page.locator( '.agg-facts' ) ).not.toContainText( 'app-password' );
+		await expect( page.locator( '.agg-json' ).first() ).toHaveAttribute( 'dir', 'ltr' );
 
 		// It ran as admin, the request has the result, and the log has both steps.
 		expect( post( id, 'post_status' ) ).toBe( 'trash' );
@@ -228,12 +283,17 @@ test.describe( 'Agent Governance', () => {
 		const bot = await agent( playwright.request, 'busy-bot' );
 		wp( 'agent-governance', 'settings', '--rate-limit=3' );
 
-		const statuses = [];
+		const responses = [];
 		for ( let i = 0; i < 4; i++ ) {
-			statuses.push( ( await bot.call( 'GET', '/wp/v2/types' ) ).status );
+			responses.push( await bot.call( 'GET', '/wp/v2/types' ) );
 		}
 
-		expect( statuses ).toEqual( [ 200, 200, 200, 429 ] );
+		expect( responses.map( ( r ) => r.status ) ).toEqual( [ 200, 200, 200, 429 ] );
+		// Well-behaved clients know when to come back.
+		const retry = Number( responses[ 3 ].headers[ 'retry-after' ] );
+		expect( retry ).toBeGreaterThanOrEqual( 1 );
+		expect( retry ).toBeLessThanOrEqual( 60 );
+		expect( responses[ 3 ].body.data.retry_after ).toBe( retry );
 		expect( one( `SELECT reason FROM wp_agent_governance_log WHERE identity = '${ bot.identity }' ORDER BY id DESC LIMIT 1` ) ).toBe( 'rate_limit' );
 		// Its own abilities still answer, so it can follow a held request.
 		expect( ( await bot.poll( 999 ) ).status ).toBe( 404 );
@@ -284,8 +344,96 @@ test.describe( 'Agent Governance', () => {
 		await expect( rows ).toHaveCount( 1 );
 		await expect( rows.first() ).toContainText( '/wp/v2/comments' );
 		await expect( rows.first() ).toContainText( 'Denied' );
+		await expect( rows.first() ).toContainText( 'Application password' );
+		await expect( rows.first() ).toContainText( 'Refused by a rule' );
+		await expect( rows.first() ).not.toContainText( 'agent_governance_denied' );
 		expect( Number( one( `SELECT COUNT(*) FROM wp_agent_governance_log WHERE identity = '${ bot.identity }'` ) ) ).toBe( 2 );
 		expect( JSON.parse( wp( 'agent-governance', 'log', `--identity=${ bot.uuid }`, '--status=denied', '--format=json' ) ) ).toHaveLength( 1 );
+		await bot.context.dispose();
+	} );
+
+	test( 'an ability with no preview of its own is described, and the approve advice goes once it is decided', async ( { page, playwright } ) => {
+		const bot = await agent( playwright.request, 'note-bot' );
+		const id = newPost( 'With a note', [ '--meta_input={"agg_note":"keep"}' ] );
+
+		const held = await bot.ability( 'agg-fixture/forget-note', { id } );
+		expect( held.status ).toBe( 202 );
+		const requestId = held.body.data.request_id;
+		expect( JSON.parse( wp( 'agent-governance', 'show', String( requestId ), '--format=json' ) ).dry_run.summary ).toBe( 'Runs "Forget a note": Removes the note saved on a post.' );
+
+		await page.goto( SCREEN );
+		await expect( page.locator( `tr[data-request="${ requestId }"]` ) ).toContainText( 'Runs "Forget a note": Removes the note saved on a post.' );
+		await page.goto( `${ SCREEN }&tab=requests&request=${ requestId }` );
+		await expect( page.locator( '.agg-preview h3' ) ).toHaveText( 'What it would change' );
+		await expect( page.locator( '.agg-check-input' ) ).toHaveText( 'Check the input below before you approve it.' );
+
+		wp( 'agent-governance', 'reject', String( requestId ), '--reason=Keep the note' );
+		await page.reload();
+		await expect( page.locator( '.agg-request-title .agg-badge' ) ).toHaveText( 'Rejected' );
+		await expect( page.locator( '.agg-preview h3' ) ).toHaveText( 'What it was asked to change' );
+		await expect( page.locator( '.agg-preview' ) ).not.toContainText( 'before you approve' );
+		expect( wp( 'post', 'meta', 'get', String( id ), 'agg_note' ) ).toBe( 'keep' );
+		await bot.context.dispose();
+	} );
+
+	test( 'with the approver capability gone from every role, admins still approve and can give it back', async ( { page, playwright } ) => {
+		const bot = await agent( playwright.request, 'orphan-bot' );
+		const id = newPost( 'Orphaned approval' );
+		const held = ( await bot.ability( 'agg-fixture/trash-post', { id } ) ).body.data.request_id;
+
+		// What a role clean-up such as Role Right-Sizer's "apply all" used to do.
+		wp( 'cap', 'remove', 'administrator', 'agent_governance_approve' );
+		expect( wpEval( 'echo get_role( "administrator" )->has_cap( "agent_governance_approve" ) ? "yes" : "no";' ) ).toBe( 'no' );
+
+		await page.goto( `${ SCREEN }&tab=requests&request=${ held }` );
+		await expect( page.locator( '.agg-request-title' ) ).toContainText( `Request #${ held }` );
+		await expect( page.locator( '.agg-no-approver' ) ).toContainText( 'No role has the agent_governance_approve capability' );
+		expect( JSON.parse( wpEval( 'echo wp_json_encode( ( new AryanX\\AgentGovernance\\Health\\SiteHealth( new AryanX\\AgentGovernance\\Settings(), new AryanX\\AgentGovernance\\Requests() ) )->run() );' ) ).status ).toBe( 'critical' );
+
+		page.once( 'dialog', ( dialog ) => dialog.accept() );
+		await page.getByRole( 'button', { name: 'Approve and run' } ).click();
+		await expect( page.locator( '.notice-success' ) ).toContainText( 'Approved. The call ran.' );
+		expect( post( id, 'post_status' ) ).toBe( 'trash' );
+
+		await page.getByRole( 'button', { name: 'Give it back to Administrator' } ).click();
+		await expect( page.locator( '.agg-no-approver' ) ).toHaveCount( 0 );
+		expect( wpEval( 'echo get_role( "administrator" )->has_cap( "agent_governance_approve" ) ? "yes" : "no";' ) ).toBe( 'yes' );
+		await bot.context.dispose();
+	} );
+
+	test( 'deactivating takes the approver capability off every role, and activating gives it back', () => {
+		wp( 'cap', 'add', 'editor', 'agent_governance_approve' );
+
+		wp( 'plugin', 'deactivate', 'agent-governance' );
+		const has = ( role ) => wpEval( `echo get_role( "${ role }" )->has_cap( "agent_governance_approve" ) ? "yes" : "no";` );
+		try {
+			expect( has( 'administrator' ) ).toBe( 'no' );
+			expect( has( 'editor' ) ).toBe( 'no' );
+		} finally {
+			wp( 'plugin', 'activate', 'agent-governance' );
+		}
+
+		expect( has( 'administrator' ) ).toBe( 'yes' );
+		expect( has( 'editor' ) ).toBe( 'no' );
+		// Tables and settings stay.
+		expect( one( "SHOW TABLES LIKE 'wp_agent_governance_log'" ) ).toBe( 'wp_agent_governance_log' );
+	} );
+
+	test( 'the screens fit a phone: rule fields and log rows stack', async ( { page, playwright } ) => {
+		const bot = await agent( playwright.request, 'phone-bot' );
+		await bot.call( 'GET', '/wp/v2/types' );
+		await page.setViewportSize( { width: 375, height: 800 } );
+
+		await page.goto( `${ SCREEN }&tab=policies` );
+		const rules = await page.locator( '.agg-rules' ).boundingBox();
+		expect( rules.x + rules.width ).toBeLessThanOrEqual( 375 );
+		expect( ( await page.locator( '.agg-rule input[name$="[pattern]"]' ).first().boundingBox() ).width ).toBeGreaterThan( 200 );
+
+		for ( const tab of [ 'activity', 'sessions', 'requests' ] ) {
+			await page.goto( `${ SCREEN }&tab=${ tab }` );
+			const table = await page.locator( '.agg-table' ).boundingBox();
+			expect( table.x + table.width, tab ).toBeLessThanOrEqual( 375 );
+		}
 		await bot.context.dispose();
 	} );
 
@@ -357,19 +505,22 @@ test.describe( 'Agent Governance', () => {
 
 	test.describe( 'through the MCP adapter', () => {
 		let installed = false;
+		let wasInstalled = false;
+		let wasActive = false;
 
 		test.beforeAll( () => {
-			try {
-				wp( 'plugin', 'install', MCP_ADAPTER, '--activate', '--force' );
-				installed = true;
-			} catch ( error ) {
-				installed = false;
-			}
+			// Use the adapter the site already has, or a known version, and put things back after.
+			wasInstalled = succeeds( 'plugin', 'is-installed', 'mcp-adapter' );
+			wasActive = wasInstalled && succeeds( 'plugin', 'is-active', 'mcp-adapter' );
+			installed = wasInstalled ? succeeds( 'plugin', 'activate', 'mcp-adapter' ) : succeeds( 'plugin', 'install', MCP_ADAPTER, '--activate' );
 		} );
 
 		test.afterAll( () => {
-			if ( installed ) {
-				wp( 'plugin', 'deactivate', 'mcp-adapter' );
+			if ( ! wasActive ) {
+				succeeds( 'plugin', 'deactivate', 'mcp-adapter' );
+			}
+			if ( ! wasInstalled ) {
+				succeeds( 'plugin', 'delete', 'mcp-adapter' );
 			}
 		} );
 
@@ -423,6 +574,62 @@ test.describe( 'Agent Governance', () => {
 			const requestId = Number( output.match( /request #(\d+)/ )[ 1 ] );
 			expect( sql( `SELECT identity, via, target FROM wp_agent_governance_requests WHERE id = ${ requestId }` )[ 0 ] ).toEqual( [ 'user:1', 'mcp', 'agg-fixture/trash-post' ] );
 			expect( post( id, 'post_status' ) ).toBe( 'publish' );
+		} );
+	} );
+
+	test.describe( 'with Site Read-Only Mode', () => {
+		let installed = false;
+		let wasInstalled = false;
+		let wasActive = false;
+
+		test.beforeAll( () => {
+			wasInstalled = succeeds( 'plugin', 'is-installed', 'site-read-only-mode' );
+			wasActive = wasInstalled && succeeds( 'plugin', 'is-active', 'site-read-only-mode' );
+			installed = wasInstalled ? succeeds( 'plugin', 'activate', 'site-read-only-mode' ) : succeeds( 'plugin', 'install', READ_ONLY_MODE, '--activate' );
+		} );
+
+		test.afterAll( () => {
+			succeeds( 'site-read-only-mode', 'off' );
+			if ( ! wasActive ) {
+				succeeds( 'plugin', 'deactivate', 'site-read-only-mode' );
+			}
+			// Only remove what this suite downloaded; a mounted copy is someone's source.
+			if ( ! wasInstalled ) {
+				succeeds( 'plugin', 'delete', 'site-read-only-mode' );
+			}
+		} );
+
+		test( 'agent calls a freeze refuses are in the audit log as refused', async ( { page, playwright } ) => {
+			test.skip( ! installed, 'Site Read-Only Mode could not be downloaded.' );
+			const bot = await agent( playwright.request, 'frozen-bot' );
+			const id = newPost( 'Frozen post' );
+
+			wp( 'site-read-only-mode', 'on', '--minutes=0' );
+			try {
+				const write = await bot.call( 'POST', `/wp/v2/posts/${ id }`, { title: 'Changed while frozen' } );
+				expect( write.status ).toBe( 423 );
+				const ability = await bot.ability( 'agg-fixture/trash-post', { id } );
+				expect( ability.status ).toBe( 423 );
+			} finally {
+				wp( 'site-read-only-mode', 'off' );
+			}
+
+			expect( post( id, 'post_title' ) ).toBe( 'Frozen post' );
+			expect( post( id, 'post_status' ) ).toBe( 'publish' );
+			const rows = sql( `SELECT source, target, decision, result FROM wp_agent_governance_log WHERE identity = '${ bot.identity }' ORDER BY id` );
+			expect( rows ).toEqual( [
+				[ 'rest', `/wp/v2/posts/${ id }`, 'refused', 'site_read_only_mode' ],
+				[ 'ability', 'agg-fixture/trash-post', 'refused', 'site_read_only_mode' ],
+			] );
+			expect( Number( one( `SELECT COUNT(*) FROM wp_agent_governance_requests WHERE identity = '${ bot.identity }'` ) ) ).toBe( 0 );
+			expect( JSON.parse( wp( 'agent-governance', 'log', `--identity=${ bot.uuid }`, '--status=refused', '--format=json' ) ) ).toHaveLength( 2 );
+
+			await page.goto( `${ SCREEN }&tab=activity&decision=refused&identity=${ encodeURIComponent( bot.identity ) }` );
+			const shown = page.locator( '.agg-activity tbody tr' );
+			await expect( shown ).toHaveCount( 2 );
+			await expect( shown.first() ).toContainText( 'Refused' );
+			await expect( shown.first() ).toContainText( 'Site Read-Only Mode freeze' );
+			await bot.context.dispose();
 		} );
 	} );
 } );

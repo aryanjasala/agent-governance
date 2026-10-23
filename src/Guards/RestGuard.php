@@ -24,6 +24,11 @@ defined( 'ABSPATH' ) || exit;
 final class RestGuard implements Service {
 
 	/**
+	 * The Abilities REST API.
+	 */
+	public const ABILITIES_ROUTE = '/wp-abilities/v1/';
+
+	/**
 	 * Applies the policy.
 	 *
 	 * @var Gate
@@ -66,9 +71,9 @@ final class RestGuard implements Service {
 		 * inside them is checked one by one.
 		 *
 		 * @param string[] $routes Route prefixes. Default the agent routes (the
-		 *                         Abilities API and the MCP adapter) and /batch/v1.
+		 *                         MCP adapter), the Abilities API and /batch/v1.
 		 */
-		$routes = (array) apply_filters( 'agent_governance_passthrough_routes', array_merge( array_keys( Classifier::agent_routes() ), array( '/batch/v1' ) ) );
+		$routes = (array) apply_filters( 'agent_governance_passthrough_routes', array_merge( array_keys( Classifier::agent_routes() ), array( self::ABILITIES_ROUTE, '/batch/v1' ) ) );
 
 		return array_values( array_filter( array_map( 'strval', $routes ) ) );
 	}
@@ -83,6 +88,11 @@ final class RestGuard implements Service {
 	 */
 	public function guard( $result, $server, $request ) {
 		if ( null !== $result ) {
+			// Another plugin answered first. When it refused an agent call, such as
+			// Site Read-Only Mode during a freeze, the call still belongs in the log.
+			if ( is_wp_error( $result ) ) {
+				$this->gate->refused( self::refused_call( $request ), $result );
+			}
 			return $result;
 		}
 
@@ -138,7 +148,62 @@ final class RestGuard implements Service {
 	public function post_dispatch( $response, $server, $request ) {
 		$this->finish( $request, $response );
 
+		return self::retry_after( $response );
+	}
+
+	/**
+	 * Adds the Retry-After header to a rate-limited response, from the seconds
+	 * the error carries. Covers REST calls and abilities run over REST.
+	 *
+	 * @param mixed $response Response.
+	 * @return mixed
+	 */
+	public static function retry_after( $response ) {
+		if ( ! is_object( $response ) || ! method_exists( $response, 'get_data' ) || ! method_exists( $response, 'header' ) ) {
+			return $response;
+		}
+
+		$data = $response->get_data();
+		if ( ! is_array( $data ) || 'agent_governance_rate_limited' !== ( $data['code'] ?? '' ) || empty( $data['data']['retry_after'] ) ) {
+			return $response;
+		}
+
+		$response->header( 'Retry-After', (string) max( 1, (int) $data['data']['retry_after'] ) );
+
 		return $response;
+	}
+
+	/**
+	 * The call behind a REST request another plugin refused. A run of the
+	 * Abilities API is named after its ability, as the ability check names it.
+	 *
+	 * @param \WP_REST_Request $request Request.
+	 * @return array source, target, method, kind, input.
+	 */
+	public static function refused_call( $request ): array {
+		$route  = (string) $request->get_route();
+		$method = strtoupper( (string) $request->get_method() );
+
+		if ( preg_match( '#^' . preg_quote( self::ABILITIES_ROUTE, '#' ) . 'abilities/(.+)/run$#', $route, $m ) ) {
+			$ability = function_exists( 'wp_get_ability' ) ? wp_get_ability( $m[1] ) : null;
+			$meta    = $ability ? (array) $ability->get_meta() : array();
+
+			return array(
+				'source' => 'ability',
+				'target' => $m[1],
+				'method' => $method,
+				'kind'   => AbilityGuard::kind( $meta ),
+				'input'  => $request->get_param( 'input' ),
+			);
+		}
+
+		return array(
+			'source' => 'rest',
+			'target' => $route,
+			'method' => $method,
+			'kind'   => self::kind( $method ),
+			'input'  => self::input( $request ),
+		);
 	}
 
 	/**

@@ -10,10 +10,11 @@ namespace AryanX\AgentGovernance;
 defined( 'ABSPATH' ) || exit;
 
 /**
- * A call counts as an agent call when it comes through the MCP adapter (its
- * REST route, or an MCP tool call such as `wp mcp-adapter serve` over STDIO),
- * the Abilities REST API, or any REST request signed in with an application
- * password.
+ * A call counts as an agent call when there is a sign of an agent: it comes
+ * through the MCP adapter (its REST route, or an MCP tool call such as
+ * `wp mcp-adapter serve` over STDIO), or it is a REST request signed in with
+ * an application password. A person in a browser, signed in with the cookie
+ * and a REST nonce, is not an agent, even on the Abilities REST API.
  *
  * Each application password is one agent identity, "app:<uuid>". Without one,
  * the identity is the user, "user:<id>". MCP calls over HTTP also carry the
@@ -47,13 +48,13 @@ final class Classifier {
 		 * Filters the REST route prefixes that count as agent calls, whoever signs in.
 		 *
 		 * @param array<string, string> $routes Route prefix => label. Default the
-		 *                                      Abilities API and the MCP adapter.
+		 *                                      MCP adapter. The Abilities API is not
+		 *                                      one: a person in wp-admin uses it too.
 		 */
 		$routes = (array) apply_filters(
 			'agent_governance_agent_routes',
 			array(
-				'/mcp/'             => 'mcp',
-				'/wp-abilities/v1/' => 'abilities-api',
+				'/mcp/' => 'mcp',
 			)
 		);
 
@@ -140,8 +141,10 @@ final class Classifier {
 		/**
 		 * Filters whether a call counts as an agent call.
 		 *
-		 * @param bool  $is_agent Whether it does. Default true for the MCP adapter,
-		 *                        the Abilities REST API and application passwords.
+		 * @param bool  $is_agent Whether it does. Default true for the MCP adapter
+		 *                        and application passwords. False for a person
+		 *                        signed in with the cookie and a REST nonce, also
+		 *                        on the Abilities REST API.
 		 * @param array $signals  user_id, app_password (uuid, name, user_id or null),
 		 *                        route, method, mcp_session and mcp (an MCP tool call is running).
 		 */

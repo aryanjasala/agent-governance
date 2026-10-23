@@ -183,6 +183,7 @@ final class Plugin {
 
 		$services = array(
 			$this->context,
+			new Capability(),
 			new Changes( $this->context ),
 			new AbilityGuard( $this->gate, $this->context ),
 			new RestGuard( $this->gate ),

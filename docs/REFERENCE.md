@@ -2,13 +2,18 @@
 
 ## How a call becomes an agent call
 
-A call counts as an agent's when it comes through:
+A call counts as an agent's when it carries a sign of an agent:
 
-- the MCP adapter: its REST route (`/mcp/...`), or any MCP tool call, which covers `wp mcp-adapter serve` over STDIO
-- the Abilities REST API (`/wp-abilities/v1/...`), whoever signs in
-- any REST request signed in with an application password
+- it comes through the MCP adapter: its REST route (`/mcp/...`), or any MCP tool call, which covers `wp mcp-adapter serve` over STDIO
+- it is a REST request signed in with an application password, the Abilities REST API (`/wp-abilities/v1/...`) included
 
-Everything else, such as a person saving a post in wp-admin or code calling an ability from PHP, passes straight through and is not logged. `agent_governance_is_agent_request` changes that.
+A person in a browser, signed in with the login cookie and a REST nonce, is not an agent, even when a screen runs a destructive ability through the Abilities REST API. Everything else, such as a person saving a post in wp-admin or code calling an ability from PHP, passes straight through and is not logged. `agent_governance_is_agent_request` changes that, for example to hold cookie calls to the Abilities API as well:
+
+```php
+add_filter( 'agent_governance_is_agent_request', function ( $is_agent, array $signals ) {
+	return $is_agent || 0 === strpos( $signals['route'], '/wp-abilities/v1/' );
+}, 10, 2 );
+```
 
 Each agent has an **identity**: `app:<uuid>` for an application password, so each one is its own agent, or `user:<id>` without one. The label is the application password's name, or the user's login. MCP calls over HTTP also carry their MCP session.
 
@@ -24,11 +29,13 @@ The policy engine decides each call in this order:
 
 1. Agent Governance's own abilities always run. Their permission checks guard them.
 2. While agents are **paused**, every write is refused with HTTP 423.
-3. Over the **rate limit** (60 calls a minute per agent by default, refused calls and polling not counted), HTTP 429.
+3. Over the **rate limit** (60 calls a minute per agent by default, refused calls and polling not counted), HTTP 429 with a `Retry-After` header: the seconds until the oldest counted call leaves the one-minute window.
 4. The first matching **rule** of the most specific scope: the agent (application password), then its user, then its role, then every agent.
 5. The **default** for the kind of call.
 
 `agent_governance_policy` then has the last word on every call, except that it cannot let a write through while agents are paused.
+
+A call another plugin refuses before Agent Governance sees it, such as a write Site Read-Only Mode stops during a freeze, is still logged, as **refused** with the other plugin's error code. So is an allowed call that another plugin refuses from inside with one of the codes in `agent_governance_refusal_codes`.
 
 ### Rules
 
@@ -44,7 +51,7 @@ Patterns match the ability name or the REST route. `*` matches anything, slashes
 | `DELETE /wp/v2/*` | deletes through the core REST API |
 | `POST\|PUT /wp/v2/pages/*` | page edits |
 
-Rules are saved under **Tools > Agent Governance > Policies** or with `wp agent-governance add-rule`, and can be added in code with `agent_governance_rules`.
+Rules are saved under **Tools > AI Agents > Policies** or with `wp agent-governance add-rule`, and can be added in code with `agent_governance_rules`.
 
 ### Abilities and REST routes
 
@@ -68,7 +75,9 @@ A held call is stored with its full input and a dry-run preview, and the agent g
 
 Through MCP only the message gets through, so it names the request.
 
-Approvers (the `agent_governance_approve` capability, given to administrators on activation) get an email and a notice in wp-admin, a count on the menu, and the request with its preview under **Tools > Agent Governance**.
+Approvers (the `agent_governance_approve` capability, given to administrators on activation) get an email and a notice in wp-admin, a count on the menu, and the request with its preview under **Tools > AI Agents**.
+
+A site is never left without an approver. If something takes `agent_governance_approve` off every role, such as a role clean-up tool, anyone with `manage_options` approves until a role has it again (`agent_governance_fallback_capability`). People who manage options see a notice with a **Give it back to Administrator** button, Site Health reports it as critical, and `wp agent-governance restore-capability` does the same from the command line.
 
 - **Approve and run** runs the call right away as the user the agent signed in as: the current user is switched for the call and back after. Abilities run through the Abilities API again, so their checks still apply. REST calls are sent again with `rest_do_request()`. The request becomes `executed`, or `failed` with the error, and stores the result.
 - **Reject** stores your reason, which the agent sees.
@@ -88,7 +97,9 @@ The preview shows a summary and each field before and after, computed without sa
 - settings (`/wp/v2/settings`)
 - plugins: activate, deactivate or delete
 
-Abilities supply their own through `agent_governance_dry_run`:
+Statuses and roles show by their names, such as "Published" and "Administrator".
+
+An ability without a preview of its own shows its label and what it says it does, such as `Runs "Reset to theme": Removes Site Editor changes to a template part.`, next to the input (`agent_governance_ability_preview`). Abilities supply a real preview through `agent_governance_dry_run`:
 
 ```php
 add_filter( 'agent_governance_dry_run', function ( $preview, array $call ) {
@@ -123,12 +134,15 @@ While an agent call runs, every post it changes is recorded against the call:
 | --- | --- | --- |
 | `agent_governance_is_agent_request` | filter | `( bool $is_agent, array $signals )`. Whether a call is an agent's. `$signals`: `user_id`, `app_password` (`uuid`, `name`, `user_id`, or null), `route`, `method`, `mcp_session`, `mcp` |
 | `agent_governance_identity` | filter | `( array $identity, array $signals )`. `key` (max 191 characters), `label`, `user_id`, `via`, `session`. A result without a key is ignored |
-| `agent_governance_agent_routes` | filter | `( array $routes )`. REST route prefix => label of the routes that make a call an agent call. Default `/mcp/` and `/wp-abilities/v1/` |
+| `agent_governance_agent_routes` | filter | `( array $routes )`. REST route prefix => label of the routes that make a call an agent call, whoever signs in. Default `/mcp/` |
 | `agent_governance_policy` | filter | `( array $decision, array $call, array $identity )`. The final decision: `action` (`allow`, `deny`, `require_approval`), `reason`, `rule`. Invalid actions are ignored, and a pause still refuses writes |
 | `agent_governance_default_rules` | filter | `( array $defaults )`. Action per kind: `readonly`, `write`, `destructive`. Invalid values keep the setting |
 | `agent_governance_rules` | filter | `( array[] $rules )`. Add rules in code: `scope`, `subject`, `pattern`, `action`. Invalid rules are dropped |
 | `agent_governance_approver_capability` | filter | `( string $capability )`. Who may approve, reject, roll back and see the log. Default `agent_governance_approve` |
-| `agent_governance_approver_roles` | filter | `( string[] $roles )`. Roles given the approver capability on activation. Default `administrator` |
+| `agent_governance_approver_roles` | filter | `( string[] $roles )`. Roles given the approver capability on activation and by the "Give it back" button. Default `administrator` |
+| `agent_governance_fallback_capability` | filter | `( string $capability )`. Who approves while no role has the approver capability. Default `manage_options`. An empty value keeps the default |
+| `agent_governance_remove_capability_on_deactivate` | filter | `( bool $remove )`. Whether deactivating takes the approver capability off every role. Default true. Activating gives it back |
+| `agent_governance_no_approver_message` | filter | `( string $message )`. The wp-admin notice while no role has the approver capability |
 | `agent_governance_settings_capability` | filter | `( string $capability )`. Who may change policies and pause agents. Default `manage_options` |
 | `agent_governance_rate_limit` | filter | `( int $per_minute, string $identity )`. 0 turns it off. Default from the setting, 60 |
 | `agent_governance_request_ttl` | filter | `( int $seconds )`. How long a held call waits. Default one day, 60 seconds to 30 days |
@@ -136,6 +150,7 @@ While an agent call runs, every post it changes is recorded against the call:
 | `agent_governance_payload_limit` | filter | `( int $bytes, string $context )`. Most bytes stored per `input`, `result` (16384) or `dry_run` (65536). Bigger values become a marked preview |
 | `agent_governance_retention_days` | filter | `( int $days )`. Days log entries and decided requests are kept. Default 30 |
 | `agent_governance_dry_run` | filter | `( array\|null $preview, array $call )`. Your own preview: `summary`, `changes` (`field`, `before`, `after`), optional `object` (`type`, `id`, `label`, `url`) |
+| `agent_governance_ability_preview` | filter | `( array $preview, string $name, mixed $input )`. The preview of an ability without its own: `supported` (false) and `summary` from the ability's label and description |
 | `agent_governance_notify_recipients` | filter | `( string[] $emails, array $request )`. Who gets the email about a held call. Default every approver, at most 50 |
 | `agent_governance_notification_email` | filter | `( array\|false $email, array $request )`. `to`, `subject`, `message`, `headers`. False skips it |
 | `agent_governance_notice_message` | filter | `( string $message, int $count )`. The wp-admin notice about waiting calls |
@@ -143,13 +158,18 @@ While an agent call runs, every post it changes is recorded against the call:
 | `agent_governance_denied_message` | filter | `( string $message, array $call, array $decision )`. What the agent reads when its call is refused by a rule, the pause or the rate limit |
 | `agent_governance_session_gap` | filter | `( int $seconds )`. Quiet time that starts a new session. Default 1800 |
 | `agent_governance_list_per_page` | filter | `( int $per_page )`. Rows per page on the screens. Default 30 |
+| `agent_governance_menu_title` | filter | `( string $title )`. The menu label under Tools. Default "AI Agents", short enough to fit on one line with the count. An empty value keeps the default |
+| `agent_governance_via_labels` | filter | `( array $labels )`. How a call came in, as shown on the screens: `app-password` => "Application password", `mcp` => "MCP", `custom` => "Custom code" |
+| `agent_governance_result_labels` | filter | `( array $labels )`. Result codes in words on the Activity tab, such as `agent_governance_pending` => "Waiting for approval". Other codes show as they are |
+| `agent_governance_refusal_codes` | filter | `( string[] $codes )`. Error codes that mean another plugin refused an allowed call from inside it, so it is logged as refused. Default `site_read_only_mode` |
 | `agent_governance_dispatch_abilities` | filter | `( string[] $abilities )`. Abilities that only run other abilities. Default `mcp-adapter/execute-ability` |
-| `agent_governance_passthrough_routes` | filter | `( string[] $routes )`. REST routes the REST check leaves to what runs inside them. Default the agent routes and `/batch/v1` |
+| `agent_governance_passthrough_routes` | filter | `( string[] $routes )`. REST routes the REST check leaves to what runs inside them. Default the agent routes, `/wp-abilities/v1/` and `/batch/v1` |
 | `agent_governance_untracked_post_types` | filter | `( string[] $types )`. Post types sessions do not record. Default `revision`, `customize_changeset`, `oembed_cache`, `user_request` |
 | `agent_governance_client_ip` | filter | `( string $ip )`. The IP address stored with each call. Return an empty string to store none |
 | `agent_governance_undo_url` | filter | `( string $url )`. Where to undo changes a rollback cannot. Default Activity Log with Undo's screen when it is active |
 | `agent_governance_call_logged` | action | `( array $row )`. An agent call was written to the log |
-| `agent_governance_call_denied` | action | `( array $call, array $identity, array $decision )`. A call was refused |
+| `agent_governance_call_denied` | action | `( array $call, array $identity, array $decision )`. A call was refused by a rule, the pause or the rate limit |
+| `agent_governance_call_refused` | action | `( array $call, array $identity, WP_Error $error )`. Another plugin refused an agent call before it ran, such as Site Read-Only Mode during a freeze |
 | `agent_governance_request_held` | action | `( array $request, array $call, array $decision )`. A call was held for approval |
 | `agent_governance_request_approved` | action | `( array $request, int $approver_id )`. Before an approved call runs |
 | `agent_governance_request_rejected` | action | `( array $request, int $approver_id, string $reason )`. A held call was rejected |
@@ -161,6 +181,8 @@ While an agent call runs, every post it changes is recorded against the call:
 | `agent_governance_settings_saved` | action | `( array $settings, array $old )`. The settings changed |
 | `agent_governance_rules_saved` | action | `( array[] $rules, array[] $old )`. The saved rules changed |
 | `agent_governance_cleaned_up` | action | `( array $result )`. After the hourly clean-up: `expired`, `log`, `requests` |
+| `agent_governance_capability_restored` | action | `( string[] $roles, int $user_id )`. The approver capability was given back, from the notice or WP-CLI |
+| `agent_governance_capability_removed` | action | `( string[] $roles )`. Deactivating took the approver capability off these roles |
 
 `$call` is `source` (`ability` or `rest`), `target` (the ability name or REST route), `method`, `kind` (`readonly`, `write`, `destructive`) and `input`.
 
@@ -222,7 +244,7 @@ wp agent-governance pending [--format=<format>]
 wp agent-governance show <id> [--format=json|yaml]
 wp agent-governance approve <id>                      # runs it as the agent's user
 wp agent-governance reject <id> [--reason=<reason>]
-wp agent-governance log [--identity=<agent>] [--status=allowed|denied|held|executed|failed] [--session=<session>] [--limit=<n>] [--format=<format>]
+wp agent-governance log [--identity=<agent>] [--status=allowed|denied|held|executed|failed|refused] [--session=<session>] [--limit=<n>] [--format=<format>]
 wp agent-governance sessions [--identity=<agent>] [--format=<format>]
 wp agent-governance rollback <agent> [--since=<when>] [--session=<session>] [--dry-run] [--yes]
 wp agent-governance pause
@@ -233,6 +255,7 @@ wp agent-governance add-rule <pattern> <allow|deny|require_approval> [--scope=de
 wp agent-governance delete-rule <id>
 wp agent-governance settings [--rate-limit=<n>] [--retention-days=<n>] [--email=on|off] [--notice=on|off] [--readonly=<action>] [--write=<action>] [--destructive=<action>]
 wp agent-governance cleanup                           # expire overdue requests and purge old log rows now
+wp agent-governance restore-capability                # give the approver capability back to Administrator
 ```
 
 `<agent>` is an application password UUID, `app:<uuid>`, `user:<id>` or a user login. `--since` takes anything `strtotime()` reads, such as `"2 hours ago"`, and defaults to the start of the agent's latest session.
@@ -245,8 +268,8 @@ wp agent-governance cleanup                           # expire overdue requests 
 | `{prefix}agent_governance_requests` table | One row per held call: time, identity, agent, user, session, ability or route, method, input (full until decided, then with secrets removed), status, who decided and when, reason, result and the dry-run preview |
 | `agent_governance_settings` option | Pause, rate limit, retention, notifications and the defaults per kind |
 | `agent_governance_rules` option | Saved rules |
-| `agent_governance_db_version` option | Table version |
-| `agent_governance_approve` capability | Given to administrators on activation |
+| `agent_governance_db_version` option | Table version. Removed on deactivation, so the next activation sets the capability up again |
+| `agent_governance_approve` capability | Given to administrators on activation. Taken off every role on deactivation and on uninstall, so no role keeps it while the plugin is off |
 
 The `agent_governance_cleanup` cron event runs hourly: it expires requests that waited too long and deletes log rows and decided requests older than the retention period, 1000 of each per run. The count of waiting requests is cached in the object cache until a request changes.
 
@@ -265,6 +288,7 @@ The log and the queue hold user IDs, IP addresses and what agents sent, which ca
 ## Limits
 
 - XML-RPC calls with an application password are not checked. Agents use the REST API and the Abilities API.
+- Agents that sign in some other way, such as a JWT or OAuth plugin, are not recognised by default. Mark their requests with `agent_governance_is_agent_request`.
 - Only post changes can be rolled back here. Options, terms, users, menus and anything deleted permanently are listed as not reversible.
 - A held REST call is sent again with the same route, query and JSON body. Calls that upload files are not replayed with the file.
 - The rate limit counts calls in the log, so it is exact per site but costs a small indexed query per agent call.

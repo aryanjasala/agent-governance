@@ -129,6 +129,10 @@ final class Gate {
 		$call   = self::normalize_call( $call );
 		$replay = $this->context->replay();
 		if ( $replay ) {
+			// An approved ability runs from PHP, with no HTTP method of its own: keep the one the agent used.
+			if ( '' === $call['method'] && (string) $replay['target'] === $call['target'] ) {
+				$call['method'] = strtoupper( (string) $replay['method'] );
+			}
 			return $this->open( $call, $identity, 'executed', 'approved', (int) $replay['id'] );
 		}
 
@@ -190,6 +194,9 @@ final class Gate {
 			return;
 		}
 
+		// Another plugin refused it from inside, such as Site Read-Only Mode's ability wrapper on 6.9 and 7.0.
+		$refused = is_wp_error( $result ) && in_array( $result->get_error_code(), self::refusal_codes(), true );
+
 		$this->log->add(
 			array(
 				'identity'    => $open['identity']['key'],
@@ -201,8 +208,8 @@ final class Gate {
 				'target'      => $open['call']['target'],
 				'method'      => $open['call']['method'],
 				'kind'        => $open['call']['kind'],
-				'decision'    => self::failed( $result ) && 'executed' === $open['decision'] ? 'failed' : $open['decision'],
-				'reason'      => $open['reason'],
+				'decision'    => $refused ? 'refused' : ( self::failed( $result ) && 'executed' === $open['decision'] ? 'failed' : $open['decision'] ),
+				'reason'      => $refused ? (string) $result->get_error_code() : $open['reason'],
 				'result'      => self::result_code( $result ),
 				'request_id'  => $open['request_id'],
 				'duration_ms' => (int) round( ( microtime( true ) - $open['start'] ) * 1000 ),
@@ -221,6 +228,75 @@ final class Gate {
 		foreach ( array_reverse( array_keys( $this->context->frames() ) ) as $index ) {
 			$this->leave( $index + 1, null );
 		}
+	}
+
+	/**
+	 * Logs an agent call another plugin refused before Agent Governance could
+	 * decide it, such as a write Site Read-Only Mode stopped during a freeze.
+	 *
+	 * @param array     $call  source (ability or rest), target, method, kind, input.
+	 * @param \WP_Error $error What the other plugin returned.
+	 * @return int Log row ID, or 0 when it was not an agent call.
+	 */
+	public function refused( array $call, \WP_Error $error ): int {
+		$identity = $this->classifier->current();
+		if ( null === $identity ) {
+			return 0;
+		}
+
+		$call = self::normalize_call( $call );
+		$code = (string) $error->get_error_code();
+
+		$id = $this->log->add(
+			array(
+				'identity' => $identity['key'],
+				'agent'    => $identity['label'],
+				'user_id'  => $identity['user_id'],
+				'session'  => $identity['session'],
+				'via'      => $identity['via'],
+				'source'   => $call['source'],
+				'target'   => $call['target'],
+				'method'   => $call['method'],
+				'kind'     => $call['kind'],
+				'decision' => 'refused',
+				'reason'   => '' !== $code ? $code : 'refused',
+				'result'   => '' !== $code ? $code : 'refused',
+				'ip'       => $this->context->ip(),
+				'input'    => Redactor::encode( $call['input'], 'input' ),
+			)
+		);
+
+		/**
+		 * Fires when another plugin refused an agent call before it ran, such as
+		 * Site Read-Only Mode during a freeze.
+		 *
+		 * @param array     $call     The call: source, target, method, kind and input.
+		 * @param array     $identity The agent: key, label, user_id, via and session.
+		 * @param \WP_Error $error    What the other plugin returned.
+		 */
+		do_action( 'agent_governance_call_refused', $call, $identity, $error );
+
+		return $id;
+	}
+
+	/**
+	 * Error codes that mean another plugin refused a call, rather than the call failing.
+	 *
+	 * @return string[]
+	 */
+	public static function refusal_codes(): array {
+		/**
+		 * Filters the error codes that mean another plugin refused an agent call
+		 * from inside it, so the log shows it as refused rather than as allowed.
+		 *
+		 * Calls another plugin stops before they reach Agent Governance are always
+		 * logged as refused, whatever their code.
+		 *
+		 * @param string[] $codes Default site_read_only_mode (a freeze).
+		 */
+		$codes = (array) apply_filters( 'agent_governance_refusal_codes', array( 'site_read_only_mode' ) );
+
+		return array_values( array_filter( array_map( 'strval', $codes ) ) );
 	}
 
 	/**
@@ -359,6 +435,7 @@ final class Gate {
 	 */
 	private function deny( array $call, array $identity, array $decision ): \WP_Error {
 		$reason = (string) $decision['reason'];
+		$retry  = 0;
 
 		switch ( $reason ) {
 			case 'paused':
@@ -370,8 +447,9 @@ final class Gate {
 				$code   = 'agent_governance_rate_limited';
 				$status = 429;
 				$limit  = $this->settings->rate_limit( (string) $identity['key'] );
-				/* translators: %d: calls per minute. */
-				$message = sprintf( __( 'Too many calls. This agent may make %d calls per minute. Wait a minute and try again.', 'agent-governance' ), $limit );
+				$retry  = $this->log->retry_after( (string) $identity['key'] );
+				/* translators: 1: calls per minute, 2: seconds to wait. */
+				$message = sprintf( _n( 'Too many calls. This agent may make %1$d calls per minute. Try again in %2$d second.', 'Too many calls. This agent may make %1$d calls per minute. Try again in %2$d seconds.', $retry, 'agent-governance' ), $limit, $retry );
 				break;
 			default:
 				$code    = 'agent_governance_denied';
@@ -416,7 +494,13 @@ final class Gate {
 		 */
 		do_action( 'agent_governance_call_denied', $call, $identity, $decision );
 
-		return new \WP_Error( $code, $message, array( 'status' => $status ) );
+		$data = array( 'status' => $status );
+		if ( $retry > 0 ) {
+			// Sent as the Retry-After header too, by the REST guard.
+			$data['retry_after'] = $retry;
+		}
+
+		return new \WP_Error( $code, $message, $data );
 	}
 
 	/**
