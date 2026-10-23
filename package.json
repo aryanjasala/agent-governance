@@ -7,10 +7,13 @@
     "env:start": "docker compose -f tests/e2e/env/docker-compose.yml up -d",
     "env:stop": "docker compose -f tests/e2e/env/docker-compose.yml down -v",
     "test:e2e": "playwright test",
+    "test:e2e:legs": "bin/e2e-legs.sh",
+    "plugin-check": "bin/plugin-check.sh",
     "screenshots": "SCREENSHOTS=1 playwright test screenshots",
     "demo": "DEMO=1 playwright test demo"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.64.1"
   },
   "engines": {

@@ -21,6 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The same legs as bin/e2e-legs.sh, which runs them locally.
         include:
           # The current release, as most sites run it.
           - label: latest
@@ -59,7 +60,7 @@ jobs:
           # The database comes up after WordPress does; install needs it.
           for i in $(seq 1 60); do $c exec -T cli wp db check > /dev/null 2>&1 && break; sleep 2; done
           $c exec -T cli wp core download --version=${{ matrix.core }} --force --skip-content
-          $c exec -T cli wp core install --url=http://localhost:${WP_PORT:-8895} --title=E2E --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email
+          $c exec -T cli wp core install --url=http://localhost:${WP_PORT:-8906} --title=E2E --admin_user=admin --admin_password=admin --admin_email=admin@example.com --skip-email
           $c exec -T cli wp theme install ${{ matrix.theme }}
           echo "WordPress $($c exec -T cli wp core version), PHP $($c exec -T wp php -r 'echo PHP_VERSION;')"
 

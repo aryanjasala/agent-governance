@@ -12,6 +12,8 @@ foreach ( array(
 	'HOUR_IN_SECONDS'   => 3600,
 	'DAY_IN_SECONDS'    => 86400,
 	'WEEK_IN_SECONDS'   => 604800,
+	'KB_IN_BYTES'       => 1024,
+	'MB_IN_BYTES'       => 1048576,
 	'ARRAY_N'           => 'ARRAY_N',
 ) as $name => $value ) {
 	defined( $name ) || define( $name, $value );
