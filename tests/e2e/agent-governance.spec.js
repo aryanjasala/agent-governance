@@ -1,6 +1,6 @@
 const { execFileSync } = require( 'child_process' );
-const { test, expect, wp, wpEval } = require( './utils' );
-const { BASE_URL, COMPOSE_DIR } = require( './utils/config' );
+const { test, expect, wp, wpEval, appPasswordClient } = require( './utils' );
+const { COMPOSE_DIR } = require( './utils/config' );
 
 const SCREEN = '/wp-admin/tools.php?page=agent-governance';
 const MCP_ADAPTER = 'https://github.com/WordPress/mcp-adapter/releases/download/v0.7.1/mcp-adapter.zip';
@@ -39,42 +39,22 @@ const newPost = ( title, extra = [] ) => Number( wp( 'post', 'create', `--post_t
 /**
  * Creates an application password for admin and returns a REST client signed in with it, and only with it.
  *
- * @param {import('@playwright/test').APIRequest} pw   Playwright's request API.
- * @param {string}                                 name Application password name.
+ * @param {string} name Application password name.
  */
-async function agent( pw, name ) {
-	try {
-		wp( 'user', 'application-password', 'delete', 'admin', wp( 'user', 'application-password', 'list', 'admin', `--name=${ name }`, '--field=uuid' ) );
-	} catch ( error ) {
-		// None yet.
-	}
-	const password = wp( 'user', 'application-password', 'create', 'admin', name, '--porcelain' );
-	const uuid = wp( 'user', 'application-password', 'list', 'admin', `--name=${ name }`, '--field=uuid' );
-	madePasswords.add( uuid );
-	const context = await pw.newContext( {
-		baseURL: BASE_URL,
-		storageState: { cookies: [], origins: [] },
-		extraHTTPHeaders: { Authorization: 'Basic ' + Buffer.from( `admin:${ password }` ).toString( 'base64' ) },
-	} );
-
-	const call = async ( method, route, data, query = '' ) => {
-		const response = await context.fetch( `/index.php?rest_route=${ encodeURIComponent( route ) }${ query ? '&' + query : '' }`, {
-			method,
-			headers: data ? { 'Content-Type': 'application/json' } : {},
-			data: data ? JSON.stringify( data ) : undefined,
-		} );
-		return { status: response.status(), body: await response.json().catch( () => null ), headers: response.headers() };
-	};
+async function agent( name ) {
+	const client = await appPasswordClient( 'admin', name );
+	madePasswords.add( client.uuid );
+	const call = ( method, route, data, query = '' ) => client.call( method, query ? `${ route }?${ query }` : route, data );
 
 	return {
-		uuid,
-		identity: `app:${ uuid }`,
-		context,
+		uuid: client.uuid,
+		identity: `app:${ client.uuid }`,
+		context: client.context,
 		call,
-		ability: ( name, input, method = 'POST' ) =>
+		ability: ( ability, input, method = 'POST' ) =>
 			'GET' === method
-				? call( 'GET', `/wp-abilities/v1/abilities/${ name }/run`, null, Object.entries( input ).map( ( [ k, v ] ) => `input[${ k }]=${ encodeURIComponent( v ) }` ).join( '&' ) )
-				: call( method, `/wp-abilities/v1/abilities/${ name }/run`, { input } ),
+				? call( 'GET', `/wp-abilities/v1/abilities/${ ability }/run`, null, Object.entries( input ).map( ( [ k, v ] ) => `input[${ k }]=${ encodeURIComponent( v ) }` ).join( '&' ) )
+				: call( method, `/wp-abilities/v1/abilities/${ ability }/run`, { input } ),
 		poll: ( id ) => call( 'GET', '/wp-abilities/v1/abilities/agent-governance/get-request/run', null, `input[id]=${ id }` ),
 	};
 }
@@ -130,8 +110,8 @@ test.describe( 'Agent Governance', () => {
 		expect( Number( one( 'SELECT COUNT(*) FROM wp_agent_governance_log' ) ) ).toBe( logBefore );
 	} );
 
-	test( 'a destructive ability is held, approved in wp-admin, and the agent gets the result', async ( { page, playwright } ) => {
-		const bot = await agent( playwright.request, 'approval-bot' );
+	test( 'a destructive ability is held, approved in wp-admin, and the agent gets the result', async ( { page } ) => {
+		const bot = await agent( 'approval-bot' );
 		const id = newPost( 'Spring sale' );
 
 		const held = await bot.ability( 'agg-fixture/trash-post', { id } );
@@ -190,8 +170,8 @@ test.describe( 'Agent Governance', () => {
 		await bot.context.dispose();
 	} );
 
-	test( 'an agent cannot approve its own request, and a rejection reaches it with the reason', async ( { page, playwright } ) => {
-		const bot = await agent( playwright.request, 'eager-bot' );
+	test( 'an agent cannot approve its own request, and a rejection reaches it with the reason', async ( { page } ) => {
+		const bot = await agent( 'eager-bot' );
 		const id = newPost( 'Keep me' );
 
 		const held = await bot.call( 'DELETE', `/wp/v2/posts/${ id }` );
@@ -219,9 +199,9 @@ test.describe( 'Agent Governance', () => {
 		await bot.context.dispose();
 	} );
 
-	test( 'a deny rule from the Policies screen returns 403 for that agent only', async ( { page, playwright } ) => {
-		const bot = await agent( playwright.request, 'rule-bot' );
-		const other = await agent( playwright.request, 'other-bot' );
+	test( 'a deny rule from the Policies screen returns 403 for that agent only', async ( { page } ) => {
+		const bot = await agent( 'rule-bot' );
+		const other = await agent( 'other-bot' );
 		const id = newPost( 'Rename me' );
 
 		await page.goto( `${ SCREEN }&tab=policies` );
@@ -254,8 +234,8 @@ test.describe( 'Agent Governance', () => {
 		await other.context.dispose();
 	} );
 
-	test( 'the pause refuses agent writes and keeps reads working', async ( { page, playwright } ) => {
-		const bot = await agent( playwright.request, 'pause-bot' );
+	test( 'the pause refuses agent writes and keeps reads working', async ( { page } ) => {
+		const bot = await agent( 'pause-bot' );
 		const id = newPost( 'Paused post' );
 
 		await page.goto( SCREEN );
@@ -279,8 +259,8 @@ test.describe( 'Agent Governance', () => {
 		await bot.context.dispose();
 	} );
 
-	test( 'the rate limit answers 429 once an agent goes over it', async ( { playwright } ) => {
-		const bot = await agent( playwright.request, 'busy-bot' );
+	test( 'the rate limit answers 429 once an agent goes over it', async () => {
+		const bot = await agent( 'busy-bot' );
 		wp( 'agent-governance', 'settings', '--rate-limit=3' );
 
 		const responses = [];
@@ -300,8 +280,8 @@ test.describe( 'Agent Governance', () => {
 		await bot.context.dispose();
 	} );
 
-	test( 'rolling back a session restores the post an agent edited and trashes the one it made', async ( { page, playwright } ) => {
-		const bot = await agent( playwright.request, 'rollback-bot' );
+	test( 'rolling back a session restores the post an agent edited and trashes the one it made', async ( { page } ) => {
+		const bot = await agent( 'rollback-bot' );
 		const id = newPost( 'Original title', [ '--post_content=Original body' ] );
 
 		expect( ( await bot.call( 'POST', `/wp/v2/posts/${ id }`, { title: 'Agent title', content: 'Agent body' } ) ).status ).toBe( 200 );
@@ -329,8 +309,8 @@ test.describe( 'Agent Governance', () => {
 		await bot.context.dispose();
 	} );
 
-	test( 'the Activity tab lists every agent call and filters by outcome', async ( { page, playwright } ) => {
-		const bot = await agent( playwright.request, 'activity-bot' );
+	test( 'the Activity tab lists every agent call and filters by outcome', async ( { page } ) => {
+		const bot = await agent( 'activity-bot' );
 		wp( 'agent-governance', 'add-rule', '/wp/v2/comments*', 'deny', '--scope=agent', `--subject=${ bot.uuid }` );
 		await bot.call( 'GET', '/wp/v2/comments' );
 		await bot.call( 'GET', '/wp/v2/types' );
@@ -352,8 +332,8 @@ test.describe( 'Agent Governance', () => {
 		await bot.context.dispose();
 	} );
 
-	test( 'an ability with no preview of its own is described, and the approve advice goes once it is decided', async ( { page, playwright } ) => {
-		const bot = await agent( playwright.request, 'note-bot' );
+	test( 'an ability with no preview of its own is described, and the approve advice goes once it is decided', async ( { page } ) => {
+		const bot = await agent( 'note-bot' );
 		const id = newPost( 'With a note', [ '--meta_input={"agg_note":"keep"}' ] );
 
 		const held = await bot.ability( 'agg-fixture/forget-note', { id } );
@@ -376,8 +356,8 @@ test.describe( 'Agent Governance', () => {
 		await bot.context.dispose();
 	} );
 
-	test( 'with the approver capability gone from every role, admins still approve and can give it back', async ( { page, playwright } ) => {
-		const bot = await agent( playwright.request, 'orphan-bot' );
+	test( 'with the approver capability gone from every role, admins still approve and can give it back', async ( { page } ) => {
+		const bot = await agent( 'orphan-bot' );
 		const id = newPost( 'Orphaned approval' );
 		const held = ( await bot.ability( 'agg-fixture/trash-post', { id } ) ).body.data.request_id;
 
@@ -419,8 +399,8 @@ test.describe( 'Agent Governance', () => {
 		expect( one( "SHOW TABLES LIKE 'wp_agent_governance_log'" ) ).toBe( 'wp_agent_governance_log' );
 	} );
 
-	test( 'the screens fit a phone: rule fields and log rows stack', async ( { page, playwright } ) => {
-		const bot = await agent( playwright.request, 'phone-bot' );
+	test( 'the screens fit a phone: rule fields and log rows stack', async ( { page } ) => {
+		const bot = await agent( 'phone-bot' );
 		await bot.call( 'GET', '/wp/v2/types' );
 		await page.setViewportSize( { width: 375, height: 800 } );
 
@@ -460,8 +440,8 @@ test.describe( 'Agent Governance', () => {
 		expect( option( 'agent_governance_settings' ).paused ).toBe( false );
 	} );
 
-	test( 'WP-CLI lists, shows, rejects, approves and expires held requests', async ( { playwright } ) => {
-		const bot = await agent( playwright.request, 'cli-bot' );
+	test( 'WP-CLI lists, shows, rejects, approves and expires held requests', async () => {
+		const bot = await agent( 'cli-bot' );
 		const a = newPost( 'CLI one' );
 		const b = newPost( 'CLI two' );
 		const c = newPost( 'CLI three' );
@@ -489,8 +469,8 @@ test.describe( 'Agent Governance', () => {
 		await bot.context.dispose();
 	} );
 
-	test( 'privacy export lists a user’s agent calls and erase keeps them without personal data', async ( { playwright } ) => {
-		const bot = await agent( playwright.request, 'privacy-bot' );
+	test( 'privacy export lists a user’s agent calls and erase keeps them without personal data', async () => {
+		const bot = await agent( 'privacy-bot' );
 		await bot.call( 'GET', '/wp/v2/types' );
 
 		const exported = JSON.parse( wpEval( 'echo wp_json_encode( call_user_func( apply_filters( "wp_privacy_personal_data_exporters", array() )["agent-governance"]["callback"], "admin@example.com", 1 ) );' ) );
@@ -524,9 +504,9 @@ test.describe( 'Agent Governance', () => {
 			}
 		} );
 
-		test( 'a destructive ability called over MCP HTTP is held, with the MCP session', async ( { playwright } ) => {
+		test( 'a destructive ability called over MCP HTTP is held, with the MCP session', async () => {
 			test.skip( ! installed, 'The MCP adapter could not be downloaded.' );
-			const bot = await agent( playwright.request, 'mcp-bot' );
+			const bot = await agent( 'mcp-bot' );
 			const id = newPost( 'MCP target' );
 			const route = '/mcp/mcp-adapter-default-server';
 			const rpc = async ( body, session ) => {
@@ -599,9 +579,9 @@ test.describe( 'Agent Governance', () => {
 			}
 		} );
 
-		test( 'agent calls a freeze refuses are in the audit log as refused', async ( { page, playwright } ) => {
+		test( 'agent calls a freeze refuses are in the audit log as refused', async ( { page } ) => {
 			test.skip( ! installed, 'Site Read-Only Mode could not be downloaded.' );
-			const bot = await agent( playwright.request, 'frozen-bot' );
+			const bot = await agent( 'frozen-bot' );
 			const id = newPost( 'Frozen post' );
 
 			wp( 'site-read-only-mode', 'on', '--minutes=0' );

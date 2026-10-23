@@ -1,0 +1,55 @@
+{
+  "$comment": "Screens tests/e2e/a11y.spec.js checks with axe-core. This file belongs to the plugin: apply-template.py only writes it when it is missing. The fields are described in docs/DEVELOPMENT.md.",
+  "include": ["#wpbody-content"],
+  "exclude": [],
+  "screens": [
+    {
+      "name": "Tools > Agent Governance, nothing waiting",
+      "setup": [{ "js": "seed.js", "call": "clearGovernance" }],
+      "url": "/wp-admin/tools.php?page=agent-governance"
+    },
+    {
+      "name": "Approval queue with held requests",
+      "setup": [{ "js": "seed.js", "call": "seedActivity", "save": "seeded" }],
+      "url": "/wp-admin/tools.php?page=agent-governance",
+      "steps": [{ "waitFor": ".agg-requests" }],
+      "cleanup": [{ "js": "seed.js", "call": "unseedActivity" }]
+    },
+    {
+      "name": "A held request with its preview",
+      "setup": [{ "js": "seed.js", "call": "seedActivity", "save": "seeded" }],
+      "url": "/wp-admin/tools.php?page=agent-governance&tab=requests&request={seeded.pageRequest}",
+      "steps": [{ "waitFor": ".agg-diff" }],
+      "cleanup": [{ "js": "seed.js", "call": "unseedActivity" }]
+    },
+    {
+      "name": "Activity log",
+      "setup": [{ "js": "seed.js", "call": "seedActivity", "save": "seeded" }],
+      "url": "/wp-admin/tools.php?page=agent-governance&tab=activity",
+      "steps": [{ "waitFor": ".agg-activity" }],
+      "cleanup": [{ "js": "seed.js", "call": "unseedActivity" }]
+    },
+    {
+      "name": "Reviewing a session before rolling it back",
+      "setup": [{ "js": "seed.js", "call": "seedActivity", "save": "seeded" }],
+      "url": "/wp-admin/tools.php?page=agent-governance&tab=sessions",
+      "steps": [{ "click": "tr:has-text(\"Shop assistant\") >> role=link[name=/Review/i]" }, { "waitFor": ".agg-plan" }],
+      "cleanup": [{ "js": "seed.js", "call": "unseedActivity" }]
+    },
+    {
+      "name": "Policies with rules",
+      "setup": [{ "js": "seed.js", "call": "seedActivity", "save": "seeded" }],
+      "url": "/wp-admin/tools.php?page=agent-governance&tab=policies",
+      "steps": [{ "waitFor": ".agg-rule" }],
+      "cleanup": [{ "js": "seed.js", "call": "unseedActivity" }]
+    },
+    {
+      "name": "Dashboard notice about requests waiting",
+      "setup": [{ "js": "seed.js", "call": "seedActivity", "save": "seeded" }],
+      "url": "/wp-admin/index.php",
+      "include": [".agg-notice"],
+      "cleanup": [{ "js": "seed.js", "call": "unseedActivity" }]
+    }
+  ],
+  "skip": {}
+}

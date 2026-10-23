@@ -1,0 +1,10 @@
+# Used by bin/plugin-check.sh on top of docker-compose.yml: mounts the folder
+# bin/build-zip.sh builds in place of the source, so Plugin Check sees exactly
+# what would ship.
+services:
+  wp:
+    volumes:
+      - ../../../dist/agent-governance:/var/www/html/wp-content/plugins/agent-governance:ro
+  cli:
+    volumes:
+      - ../../../dist/agent-governance:/var/www/html/wp-content/plugins/agent-governance:ro

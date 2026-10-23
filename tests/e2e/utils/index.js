@@ -1,6 +1,8 @@
 // Test fixtures for the end-to-end tests.
 const base = require( '@playwright/test' );
 const { wp, wpEval } = require( './wp-cli' );
+const { logIn, logInAs, appPasswordClient } = require( './auth' );
+const { expectNoSeriousA11yViolations } = require( './a11y' );
 
 const test = base.test.extend( {
 	/**
@@ -46,4 +48,4 @@ async function openEditor( page, postId ) {
 	}
 }
 
-module.exports = { test, expect: base.expect, wp, wpEval, openEditor };
+module.exports = { test, expect: base.expect, wp, wpEval, openEditor, logIn, logInAs, appPasswordClient, expectNoSeriousA11yViolations };

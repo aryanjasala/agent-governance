@@ -3,7 +3,7 @@ const { test, expect, wp } = require( './utils' );
 const { prepareSite, recordDemo } = require( './utils/media' );
 const { clearGovernance, installFixture, createPeople, removePeople, agent, createContent, createRules } = require( './seed' );
 
-test( 'demo: an agent edit is held, reviewed and approved', async ( { browser, playwright } ) => {
+test( 'demo: an agent edit is held, reviewed and approved', async ( { browser } ) => {
 	test.setTimeout( 180_000 );
 	prepareSite( 'Bean There Coffee' );
 	installFixture();
@@ -11,8 +11,8 @@ test( 'demo: an agent edit is held, reviewed and approved', async ( { browser, p
 	createPeople();
 	const ids = createContent();
 
-	const shop = await agent( playwright.request, 'admin', 'Shop assistant' );
-	const writer = await agent( playwright.request, 'maria', 'Content assistant' );
+	const shop = await agent( 'admin', 'Shop assistant' );
+	const writer = await agent( 'maria', 'Content assistant' );
 	createRules( shop.uuid );
 	wp( 'agent-governance', 'settings', '--email=off' );
 

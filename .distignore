@@ -22,5 +22,6 @@
 /docs
 /blueprint.json
 /.phpunit.result.cache
-/.DS_Store
+# No leading slash: matches in every folder, not just the top one.
+.DS_Store
 /.wordpress-org

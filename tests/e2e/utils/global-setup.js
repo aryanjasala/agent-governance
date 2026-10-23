@@ -20,6 +20,26 @@ function waitForDatabase() {
 	}
 }
 
+/**
+ * Screenshots and the demo GIF only come from the latest WordPress. On an older
+ * version they show the core update nag, and readers expect today's screens.
+ */
+function requireLatestWordPress() {
+	let updates;
+	try {
+		updates = wp( 'core', 'check-update', '--format=count' );
+	} catch ( error ) {
+		throw new Error( `Could not check WordPress.org for a newer WordPress, so no screenshots or demo were taken.\n${ error.stderr || error.message }` );
+	}
+	if ( /^\d+$/.test( updates ) && Number( updates ) > 0 ) {
+		const latest = wp( 'core', 'check-update', '--field=version' ).split( '\n' )[ 0 ];
+		throw new Error(
+			`The test site runs WordPress ${ wp( 'core', 'version' ) }, but ${ latest } is out. Screenshots and the demo only come from the latest version.\n` +
+				'Update it first: docker compose -f tests/e2e/env/docker-compose.yml exec -T cli wp core update'
+		);
+	}
+}
+
 module.exports = async function globalSetup() {
 	waitForDatabase();
 
@@ -27,6 +47,10 @@ module.exports = async function globalSetup() {
 		wp( 'core', 'is-installed' );
 	} catch ( error ) {
 		wp( 'core', 'install', `--url=${ BASE_URL }`, '--title=E2E', `--admin_user=${ USERNAME }`, `--admin_password=${ PASSWORD }`, '--admin_email=admin@example.com', '--skip-email' );
+	}
+
+	if ( process.env.SCREENSHOTS || process.env.DEMO ) {
+		requireLatestWordPress();
 	}
 
 	wp( 'site', 'empty', '--yes' );
