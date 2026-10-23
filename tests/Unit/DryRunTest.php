@@ -139,8 +139,8 @@ final class DryRunTest extends AgentTestCase {
 				),
 				array(
 					'field'  => 'Status',
-					'before' => 'publish',
-					'after'  => 'draft',
+					'before' => 'Published',
+					'after'  => 'Draft',
 				),
 				array(
 					'field'  => 'Password',
@@ -160,7 +160,8 @@ final class DryRunTest extends AgentTestCase {
 	public function test_a_post_delete_trashes_unless_forced(): void {
 		$trash = $this->dry->preview( $this->rest( 'DELETE', '/wp/v2/posts/5' ) );
 		$this->assertSame( 'Moves the Post "Hello" to the trash.', $trash['summary'] );
-		$this->assertSame( 'trash', $trash['changes'][0]['after'] );
+		$this->assertSame( 'Published', $trash['changes'][0]['before'], 'Statuses read as people read them, not as slugs.' );
+		$this->assertSame( 'Trash', $trash['changes'][0]['after'] );
 
 		$force = $this->dry->preview( $this->rest( 'DELETE', '/wp/v2/posts/5', array(), array( 'force' => 'true' ) ) );
 		$this->assertStringContainsString( 'permanently', $force['summary'] );
@@ -235,7 +236,8 @@ final class DryRunTest extends AgentTestCase {
 		);
 		$this->assertSame( 'Changes the user "ed".', $edit['summary'] );
 		$this->assertSame( array( 'Password', 'Roles' ), array_column( $edit['changes'], 'field' ) );
-		$this->assertSame( 'administrator', $edit['changes'][1]['after'] );
+		$this->assertSame( 'Administrator', $edit['changes'][1]['after'], 'Roles read by their names.' );
+		$this->assertSame( 'Editor', $edit['changes'][1]['before'] );
 
 		$delete = $this->dry->preview( $this->rest( 'DELETE', '/wp/v2/users/2', array(), array( 'reassign' => '1' ) ) );
 		$this->assertSame( 'Deletes the user "ed" and gives their content to user 1.', $delete['summary'] );
@@ -250,10 +252,58 @@ final class DryRunTest extends AgentTestCase {
 		$preview = $this->dry->preview( $this->rest( 'POST', '/wp/v2/plugins/akismet/akismet', array( 'status' => 'active' ) ) );
 
 		$this->assertSame( 'Changes the plugin "Akismet".', $preview['summary'] );
-		$this->assertSame( 'inactive', $preview['changes'][0]['before'] );
+		$this->assertSame( 'Inactive', $preview['changes'][0]['before'] );
+		$this->assertSame( 'Active', $preview['changes'][0]['after'] );
+	}
+
+	public function test_an_ability_without_a_preview_is_described_by_its_label_and_description(): void {
+		$ability = new class() {
+			public function get_label() {
+				return 'Reset to theme';
+			}
+
+			public function get_description() {
+				return 'Removes Site Editor changes to a template part. A backup is kept.';
+			}
+		};
+		Functions\expect( 'wp_get_ability' )->once()->with( 'block-theme-ops/reset-to-theme' )->andReturn( $ability );
+
+		$preview = $this->dry->preview(
+			array(
+				'source' => 'ability',
+				'target' => 'block-theme-ops/reset-to-theme',
+				'method' => 'POST',
+				'kind'   => 'destructive',
+				'input'  => array( 'item' => 'parts/footer' ),
+			)
+		);
+
+		$this->assertFalse( $preview['supported'], 'Nothing was computed, so the approver still checks the input.' );
+		$this->assertSame( 'Runs "Reset to theme": Removes Site Editor changes to a template part. A backup is kept.', $preview['summary'] );
+		$this->assertStringNotContainsString( 'before you approve', $preview['summary'], 'The summary stays true after a decision.' );
+	}
+
+	public function test_the_ability_preview_filter(): void {
+		Functions\when( 'wp_get_ability' )->justReturn(
+			new class() {
+				public function get_label() {
+					return 'Ping';
+				}
+
+				public function get_description() {
+					return '';
+				}
+			}
+		);
+		Filters\expectApplied( 'agent_governance_ability_preview' )->once()->with( array( 'supported' => false, 'summary' => 'Runs "Ping".' ), 'my/ping', null )->andReturn( array( 'summary' => 'Pings the server.' ) ); // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+
+		$preview = DryRun::ability( 'my/ping', null );
+
+		$this->assertSame( 'Pings the server.', $preview['summary'] );
 	}
 
 	public function test_abilities_have_no_built_in_preview(): void {
+		Functions\when( 'wp_get_ability' )->justReturn( null );
 		$preview = $this->dry->preview(
 			array(
 				'source' => 'ability',

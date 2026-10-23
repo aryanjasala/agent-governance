@@ -111,12 +111,21 @@ final class AbilityGuard implements Service {
 	public function pre_execute( $pre, $name, $input = null, $ability = null ) {
 		$name = (string) $name;
 
-		// Another plugin already answered, such as Site Read-Only Mode during a freeze.
-		if ( ! is_a( $pre, 'WP_Filter_Sentinel' ) || in_array( $name, self::dispatchers(), true ) ) {
+		if ( in_array( $name, self::dispatchers(), true ) ) {
 			return $pre;
 		}
 
 		$ability = is_object( $ability ) ? $ability : ( function_exists( 'wp_get_ability' ) ? wp_get_ability( $name ) : null );
+
+		// Another plugin already answered, such as Site Read-Only Mode during a freeze.
+		// When it refused an agent's call, the call still belongs in the log.
+		if ( ! is_a( $pre, 'WP_Filter_Sentinel' ) ) {
+			if ( is_wp_error( $pre ) ) {
+				$this->gate->refused( $this->call( $name, $input, $ability ), $pre );
+			}
+			return $pre;
+		}
+
 		$call    = $this->call( $name, $input, $ability );
 		$outcome = $this->gate->decide( $call );
 		if ( null === $outcome ) {

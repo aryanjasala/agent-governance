@@ -245,12 +245,34 @@ final class AbilityGuardTest extends AgentTestCase {
 
 	public function test_on_71_the_ability_is_looked_up_when_core_does_not_pass_it(): void {
 		$this->as_app_password();
-		Functions\expect( 'wp_get_ability' )->once()->with( 'my/delete' )->andReturn( $this->ability( array( 'destructive' => true ) ) );
+		Functions\expect( 'wp_get_ability' )->atLeast()->once()->with( 'my/delete' )->andReturn( $this->ability( array( 'destructive' => true ) ) );
 		$guard = new AbilityGuard( $this->gate, $this->context, true );
 
 		$result = $guard->pre_execute( new \WP_Filter_Sentinel(), 'my/delete', array( 'id' => 1 ) );
 
 		$this->assertSame( 'agent_governance_pending', $result->get_error_code() );
+	}
+
+	public function test_on_71_an_agent_call_another_plugin_refused_is_logged(): void {
+		$this->as_app_password();
+		$guard  = new AbilityGuard( $this->gate, $this->context, true );
+		$frozen = new \WP_Error( 'site_read_only_mode', 'Frozen.', array( 'status' => 423 ) );
+
+		$this->assertSame( $frozen, $guard->pre_execute( $frozen, 'my/delete', array( 'id' => 3 ), $this->ability( array( 'destructive' => true ) ) ) );
+
+		$row = $this->wpdb->rows( 'log' )[0];
+		$this->assertSame( 'refused', $row['decision'] );
+		$this->assertSame( 'my/delete', $row['target'] );
+		$this->assertSame( 'destructive', $row['kind'] );
+		$this->assertSame( array(), $this->wpdb->rows( 'requests' ), 'Nothing is held.' );
+	}
+
+	public function test_on_71_another_plugins_answer_that_is_not_an_error_is_not_logged(): void {
+		$this->as_app_password();
+		$guard = new AbilityGuard( $this->gate, $this->context, true );
+
+		$this->assertSame( array( 'cached' => true ), $guard->pre_execute( array( 'cached' => true ), 'my/delete', array(), $this->ability( array() ) ) );
+		$this->assertSame( array(), $this->wpdb->inserted );
 	}
 
 	public function test_on_71_calls_that_are_not_an_agents_pass(): void {

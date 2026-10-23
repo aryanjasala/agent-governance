@@ -20,7 +20,7 @@
 }
 
 .agg-paused .agg-pause-form {
-	margin-left: auto;
+	margin-inline-start: auto;
 }
 
 .agg-tabs {
@@ -164,6 +164,25 @@
 	width: 100%;
 }
 
+/* Code, JSON and diffs read left to right in every language. */
+.agg-json,
+.agg-text-diff,
+.agg-wrap code {
+	direction: ltr;
+	text-align: left;
+	unicode-bidi: isolate;
+}
+
+/* Links in table text are underlined, not told apart by colour alone. */
+.agg-table td a:not(.button):not(.row-title),
+.agg-link {
+	text-decoration: underline;
+}
+
+.agg-link {
+	white-space: nowrap;
+}
+
 .agg-json {
 	max-height: 360px;
 	overflow: auto;
@@ -186,7 +205,7 @@
 .agg-facts td {
 	padding: 6px 0;
 	border-bottom: 1px solid #f0f0f1;
-	text-align: left;
+	text-align: start;
 	vertical-align: top;
 }
 
@@ -237,4 +256,55 @@
 
 .agg-intro {
 	margin-bottom: 12px;
+}
+
+/* Small screens: each row becomes a card, each cell labelled, as core's list tables do. */
+@media screen and (max-width: 782px) {
+	.agg-stack,
+	.agg-stack tbody,
+	.agg-stack tr,
+	.agg-stack td {
+		display: block;
+		box-sizing: border-box;
+		width: 100%;
+	}
+
+	.agg-stack thead {
+		position: absolute;
+		overflow: hidden;
+		width: 1px;
+		height: 1px;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+
+	.agg-stack tr {
+		padding: 8px 0;
+		border-bottom: 1px solid #dcdcde;
+	}
+
+	.agg-stack td {
+		padding: 4px 12px;
+	}
+
+	.agg-stack td[data-colname]::before {
+		content: attr(data-colname);
+		display: block;
+		margin-bottom: 2px;
+		color: #50575e;
+		font-size: 12px;
+		font-weight: 600;
+	}
+
+	.agg-rules .regular-text,
+	.agg-rules select {
+		width: 100%;
+		max-width: none;
+	}
+
+	.agg-filters select,
+	.agg-filters input[type="search"] {
+		flex: 1 1 100%;
+		max-width: none;
+	}
 }

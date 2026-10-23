@@ -157,6 +157,24 @@ final class Log {
 	}
 
 	/**
+	 * Seconds until an identity over its rate limit may call again: when the
+	 * oldest call counted in the last minute drops out of the window.
+	 *
+	 * @param string $identity Identity key.
+	 * @return int 1 to 60.
+	 */
+	public function retry_after( string $identity ): int {
+		global $wpdb;
+
+		$now = time();
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Same window as recent_calls(), only when a call is refused.
+		$oldest = $wpdb->get_var( $wpdb->prepare( "SELECT MIN(created) FROM %i WHERE identity = %s AND created >= %s AND decision IN ('allowed','held') AND target NOT LIKE %s", Schema::log_table(), $identity, gmdate( 'Y-m-d H:i:s', $now - MINUTE_IN_SECONDS ), $wpdb->esc_like( Abilities::CATEGORY . '/' ) . '%' ) );
+		$wait   = $oldest ? (int) strtotime( $oldest . ' UTC' ) + MINUTE_IN_SECONDS - $now : MINUTE_IN_SECONDS;
+
+		return max( 1, min( MINUTE_IN_SECONDS, $wait ) );
+	}
+
+	/**
 	 * Rows matching filters, newest first.
 	 *
 	 * @param array $args identity, decision, session, user_id, search, request_id, limit, offset.

@@ -54,14 +54,41 @@ final class ClassifierTest extends AgentTestCase {
 		$this->assertSame( '', $identity['session'] );
 	}
 
-	public function test_the_abilities_rest_api_counts_as_an_agent_even_with_a_cookie(): void {
-		$this->context->capture_rest( null, null, $this->rest( '/wp-abilities/v1/abilities/core/get-site-info/run', 'GET' ) );
+	public function test_a_person_with_the_cookie_on_the_abilities_api_is_not_an_agent(): void {
+		// An admin in wp-admin running a destructive ability with the cookie and a REST nonce.
+		$this->context->capture_rest( null, null, $this->rest( '/wp-abilities/v1/abilities/block-theme-ops/reset-to-theme/run', 'POST' ) );
+
+		$this->assertNull( $this->classifier->current() );
+		$this->assertFalse( $this->classifier->is_machine() );
+	}
+
+	public function test_an_application_password_on_the_abilities_api_is_an_agent(): void {
+		$this->as_app_password();
+		$this->context->capture_rest( null, null, $this->rest( '/wp-abilities/v1/abilities/block-theme-ops/reset-to-theme/run', 'POST' ) );
+
+		$identity = $this->classifier->current();
+
+		$this->assertSame( 'app:aaaa-1111', $identity['key'] );
+		$this->assertSame( 'app-password', $identity['via'] );
+	}
+
+	public function test_the_abilities_api_is_not_an_agent_route_by_default(): void {
+		$this->assertSame( array( '/mcp/' => 'mcp' ), \AryanX\AgentGovernance\Classifier::agent_routes() );
+	}
+
+	public function test_the_is_agent_request_filter_can_count_cookie_ability_calls_again(): void {
+		$this->context->capture_rest( null, null, $this->rest( '/wp-abilities/v1/abilities/x/run' ) );
+		Filters\expectApplied( 'agent_governance_is_agent_request' )->once()->andReturnUsing(
+			static function ( $is_agent, $signals ) {
+				return $is_agent || 0 === strpos( $signals['route'], '/wp-abilities/v1/' );
+			}
+		);
 
 		$identity = $this->classifier->current();
 
 		$this->assertSame( 'user:1', $identity['key'] );
 		$this->assertSame( 'admin', $identity['label'] );
-		$this->assertSame( 'abilities-api', $identity['via'] );
+		$this->assertSame( 'custom', $identity['via'] );
 	}
 
 	public function test_the_mcp_route_carries_its_session(): void {
@@ -93,7 +120,7 @@ final class ClassifierTest extends AgentTestCase {
 
 	public function test_a_visitor_on_an_agent_route_is_labelled(): void {
 		$this->user_id = 0;
-		$this->context->capture_rest( null, null, $this->rest( '/wp-abilities/v1/abilities' ) );
+		$this->context->capture_rest( null, null, $this->rest( '/mcp/mcp-adapter-default-server' ) );
 
 		$this->assertSame( 'user:0', $this->classifier->current()['key'] );
 		$this->assertSame( 'Not signed in', $this->classifier->current()['label'] );

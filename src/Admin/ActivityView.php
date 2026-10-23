@@ -62,6 +62,7 @@ final class ActivityView {
 			'held'     => __( 'Held', 'agent-governance' ),
 			'executed' => __( 'Executed', 'agent-governance' ),
 			'failed'   => __( 'Failed', 'agent-governance' ),
+			'refused'  => __( 'Refused by another plugin', 'agent-governance' ),
 		);
 
 		echo '<form method="get" class="agg-filters"><input type="hidden" name="page" value="' . esc_attr( Page::SLUG ) . '"><input type="hidden" name="tab" value="activity">';
@@ -88,8 +89,19 @@ final class ActivityView {
 			)
 		);
 
-		echo '<table class="widefat striped agg-table agg-activity"><thead><tr>';
-		foreach ( array( __( 'When', 'agent-governance' ), __( 'Agent', 'agent-governance' ), __( 'Call', 'agent-governance' ), __( 'Kind', 'agent-governance' ), __( 'Outcome', 'agent-governance' ), __( 'Why', 'agent-governance' ), __( 'Result', 'agent-governance' ), __( 'Time', 'agent-governance' ) ) as $heading ) {
+		$columns = array(
+			'when'     => __( 'When', 'agent-governance' ),
+			'agent'    => __( 'Agent', 'agent-governance' ),
+			'call'     => __( 'Call', 'agent-governance' ),
+			'kind'     => __( 'Kind', 'agent-governance' ),
+			'outcome'  => __( 'Outcome', 'agent-governance' ),
+			'why'      => __( 'Why', 'agent-governance' ),
+			'result'   => __( 'Result', 'agent-governance' ),
+			'duration' => __( 'Time', 'agent-governance' ),
+		);
+
+		echo '<table class="widefat striped agg-table agg-stack agg-activity"><thead><tr>';
+		foreach ( $columns as $heading ) {
 			echo '<th scope="col">' . esc_html( $heading ) . '</th>';
 		}
 		echo '</tr></thead><tbody>';
@@ -101,20 +113,33 @@ final class ActivityView {
 		foreach ( $found['rows'] as $row ) {
 			$outcome = Display::badge( (string) $row['decision'] );
 			if ( (int) $row['request_id'] ) {
-				$outcome .= sprintf( ' <a href="%1$s">#%2$d</a>', esc_url( Page::request_url( (int) $row['request_id'] ) ), (int) $row['request_id'] );
+				$outcome .= sprintf(
+					' <a class="agg-link" href="%1$s">%2$s</a>',
+					esc_url( Page::request_url( (int) $row['request_id'] ) ),
+					/* translators: %d: request ID. */
+					esc_html( sprintf( __( 'Request #%d', 'agent-governance' ), (int) $row['request_id'] ) )
+				);
 			}
 			printf(
-				'<tr data-log="%1$d"><td>%2$s</td><td>%3$s<div class="agg-sub">%4$s</div></td><td>%5$s</td><td>%6$s</td><td>%7$s</td><td>%8$s</td><td><code>%9$s</code></td><td>%10$s</td></tr>',
+				'<tr data-log="%1$d"><td data-colname="%11$s">%2$s</td><td data-colname="%12$s">%3$s<div class="agg-sub">%4$s</div></td><td data-colname="%13$s">%5$s</td><td data-colname="%14$s">%6$s</td><td data-colname="%15$s">%7$s</td><td data-colname="%16$s">%8$s</td><td data-colname="%17$s">%9$s</td><td data-colname="%18$s">%10$s</td></tr>',
 				(int) $row['id'],
 				Display::time( (string) $row['created'] ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 				esc_html( Log::identity_label( $row ) ),
-				esc_html( (string) $row['via'] ),
+				esc_html( Display::via( (string) $row['via'] ) ),
 				Display::call( $row ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 				esc_html( Display::kind( (string) $row['kind'] ) ),
 				$outcome, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above.
 				esc_html( Display::reason( (string) $row['reason'], $patterns ) ),
-				esc_html( (string) $row['result'] ),
-				esc_html( sprintf( /* translators: %d: milliseconds. */ __( '%d ms', 'agent-governance' ), (int) $row['duration_ms'] ) )
+				Display::result_html( (string) $row['result'] ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
+				esc_html( sprintf( /* translators: %d: milliseconds. */ __( '%d ms', 'agent-governance' ), (int) $row['duration_ms'] ) ),
+				esc_attr( $columns['when'] ),
+				esc_attr( $columns['agent'] ),
+				esc_attr( $columns['call'] ),
+				esc_attr( $columns['kind'] ),
+				esc_attr( $columns['outcome'] ),
+				esc_attr( $columns['why'] ),
+				esc_attr( $columns['result'] ),
+				esc_attr( $columns['duration'] )
 			);
 		}
 		echo '</tbody></table>';

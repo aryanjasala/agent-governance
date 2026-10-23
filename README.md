@@ -31,14 +31,15 @@ AI agents now work on WordPress through the Abilities API, the MCP adapter and a
 
 ## Features
 
-- **Knows which calls are agents**: the MCP adapter (HTTP and `wp mcp-adapter serve`), the Abilities REST API, and REST requests signed in with an application password. Each application password is its own agent
-- **Approval queue**: risky calls get HTTP 202 and a request ID, and wait. The agent polls `agent-governance/get-request` for the outcome and the result
-- **Dry-run preview**: each field before and after, for posts, pages, terms, users, settings and plugins. Abilities add their own through a filter
+- **Knows which calls are agents**: the MCP adapter (HTTP and `wp mcp-adapter serve`) and REST requests signed in with an application password, the Abilities REST API included. Each application password is its own agent. A person in wp-admin is never held, even when a screen runs abilities
+- **Approval queue**: risky calls get HTTP 202 and a request ID, and wait. The agent polls `agent-governance/get-request` for the outcome and the result. Approvers find them under **Tools > AI Agents**
+- **Dry-run preview**: each field before and after, for posts, pages, terms, users, settings and plugins. Abilities add their own through a filter, and the rest show what the ability says it does
 - **Approve and run** as the user the agent signed in as, or **reject** with a reason the agent sees. Unanswered requests expire after a day. An agent can never approve its own request
 - **Policies** per agent, user, role or for every agent, with `*` patterns on abilities and REST routes: allow, deny or hold for approval
-- **Rate limit** per agent, and a **Pause** button that refuses every agent write while reads keep working
-- **Audit log** of every call with the input (secrets removed), outcome and timing, grouped into **sessions**
+- **Rate limit** per agent with a `Retry-After` header, and a **Pause** button that refuses every agent write while reads keep working
+- **Audit log** of every call with the input (secrets removed), outcome and timing, grouped into **sessions**. Calls another plugin refused, such as Site Read-Only Mode during a freeze, are in it too
 - **Roll back a session**: edited posts go back to the revision saved before the agent touched them, created posts go to the trash, after a preview
+- **Never without an approver**: if a role clean-up takes the approver capability off every role, administrators still approve, and a notice gives it back in one click
 - **Privacy** export and erase, **WP-CLI** for everything, abilities, and a **Site Health** check
 
 ## Install
@@ -63,7 +64,7 @@ curl -u maria:"abcd efgh ijkl mnop qrst uvwx" -X DELETE https://example.com/wp-j
 # HTTP 202 {"code":"agent_governance_pending","data":{"status":202,"request_id":12, ...}}
 ```
 
-Approve it from **Tools > Agent Governance**, or from the command line:
+Approve it from **Tools > AI Agents**, or from the command line:
 
 ```sh
 wp agent-governance pending
@@ -107,6 +108,7 @@ src/
 ├── Plugin.php            creates the services
 ├── Requirements.php      the WordPress 6.9 check
 ├── Schema.php            tables, capability, schedule
+├── Capability.php        the approver capability and its fallback
 ├── Settings.php          settings and rules
 ├── Context.php           what this request knows: app password, route, MCP
 ├── Classifier.php        agent or not, and which agent
@@ -124,7 +126,7 @@ src/
 ├── Cleanup.php           the hourly clean-up
 ├── Privacy.php           export, erase and policy text
 ├── Abilities.php         abilities for agents and approvers
-├── Admin/                Tools > Agent Governance
+├── Admin/                Tools > AI Agents
 ├── Health/SiteHealth.php the Site Health check
 └── Cli/Command.php       wp agent-governance
 assets/                   admin.css, admin.js
@@ -146,6 +148,12 @@ Small plugins that each fill one gap in WordPress, all free with no pro version:
 | <img src="https://raw.githubusercontent.com/aryanjasala/category-tag-trash/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [Category & Tag Trash](https://github.com/aryanjasala/category-tag-trash) | A trash for categories, tags and custom terms, with undo and full restore |
 | <img src="https://raw.githubusercontent.com/aryanjasala/site-read-only-mode/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [Site Read-Only Mode](https://github.com/aryanjasala/site-read-only-mode) | Read-only mode for WordPress during migrations and deploys |
 | <img src="https://raw.githubusercontent.com/aryanjasala/restore-blocks-from-revisions/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [Restore Blocks from Revisions](https://github.com/aryanjasala/restore-blocks-from-revisions) | Restore a single block from an old revision, not the whole post |
+| <img src="https://raw.githubusercontent.com/aryanjasala/activity-log-with-undo/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [Activity Log with Undo](https://github.com/aryanjasala/activity-log-with-undo) | An activity log where every change you can reverse has an Undo button |
+| <img src="https://raw.githubusercontent.com/aryanjasala/block-doctor/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [Block Doctor](https://github.com/aryanjasala/block-doctor) | Scan the whole site for invalid and broken blocks and fix them in bulk, with undo |
+| <img src="https://raw.githubusercontent.com/aryanjasala/block-theme-ops/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [Block Theme Ops](https://github.com/aryanjasala/block-theme-ops) | Find Site Editor changes that override your theme files, see the diff, reset them or send them to Git |
+| <img src="https://raw.githubusercontent.com/aryanjasala/role-right-sizer/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [Role Right-Sizer](https://github.com/aryanjasala/role-right-sizer) | Recommends the smallest role each user needs, from what they actually do |
+| <img src="https://raw.githubusercontent.com/aryanjasala/update-rehearsal/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [Update Rehearsal](https://github.com/aryanjasala/update-rehearsal) | Try plugin, theme, core and PHP updates on a disposable copy of your site in WordPress Playground first |
+| <img src="https://raw.githubusercontent.com/aryanjasala/user-session-manager/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [User Session Manager](https://github.com/aryanjasala/user-session-manager) | See every device signed in, sign out one, and limit sessions per role |
 
 ## License
 

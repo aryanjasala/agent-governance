@@ -18,25 +18,26 @@ Agent Governance adds that.
 
 **Knows which calls are agents:**
 
-* Calls through the MCP adapter (over HTTP or `wp mcp-adapter serve`), the Abilities REST API, and any REST request signed in with an application password.
+* Calls through the MCP adapter (over HTTP or `wp mcp-adapter serve`), and any REST request signed in with an application password, the Abilities REST API included.
 * Each application password is its own agent, so "Shop assistant" and "Content assistant" get their own rules, limits and log.
+* A person in wp-admin is not an agent, even when a screen of another plugin runs abilities in the browser. Those calls run straight away.
 
 **Holds risky calls for approval:**
 
 * By default, read-only calls run, writes run and are logged, and destructive calls (abilities marked destructive, REST DELETE) wait for approval.
 * A held call gets HTTP 202 and a request ID. The agent polls the `agent-governance/get-request` ability for the outcome and the result.
-* Approvers get an email and a notice, and see the call with a **dry-run preview**: each field before and after, for posts, pages, terms, users, settings and plugins. Abilities can add their own preview.
+* Approvers get an email and a notice, and see the call under Tools > AI Agents with a **dry-run preview**: each field before and after, for posts, pages, terms, users, settings and plugins. Abilities can add their own preview; the rest show what the ability says it does.
 * Approve runs the call as the user the agent signed in as. Reject sends the agent your reason. Requests nobody decides expire after a day.
 * An agent can never approve its own request: deciding is refused through application passwords and MCP.
 
 **Policies:**
 
 * Rules per agent, per user, per role or for every agent, on ability names and REST routes with `*` patterns: allow, deny or hold for approval.
-* A rate limit per agent (60 calls a minute by default) and a **Pause** button that refuses every agent write at once, while reads keep working.
+* A rate limit per agent (60 calls a minute by default, with a `Retry-After` header) and a **Pause** button that refuses every agent write at once, while reads keep working.
 
 **Audit log and rollback:**
 
-* Every agent call: who, what, the input (with passwords, tokens and keys removed), the outcome and how long it took.
+* Every agent call: who, what, the input (with passwords, tokens and keys removed), the outcome and how long it took. Calls another plugin refused, such as Site Read-Only Mode during a freeze, are in the log too.
 * Calls are grouped into sessions. **Roll back session** restores each post the agent edited to the revision saved before its first change and moves posts it created to the trash, after showing you the plan. Other changes are listed as not reversible here.
 
 Free and open source under the GPL. No pro version, no upsells, no ads in wp-admin, no tracking. And it stays that way.
@@ -75,9 +76,17 @@ No. It runs as the user the agent signed in as, so that user's permissions still
 
 Posts, pages and other post types: edits go back to the revision saved just before the agent's first change in the session, with the old status, and posts the agent created go to the trash. Options, terms, users and anything deleted permanently are listed as not reversible here. With Activity Log with Undo active, the screen links to it for those.
 
+= What counts as an agent call? =
+
+Calls through the MCP adapter, over HTTP or `wp mcp-adapter serve`, and REST requests signed in with an application password. A person signed in to wp-admin is not an agent, even when a screen calls the Abilities REST API with the login cookie, so their calls run straight away and are not logged. The `agent_governance_is_agent_request` filter changes that, for example for agents that sign in through a JWT or OAuth plugin.
+
 = Does it slow down people using wp-admin? =
 
 No. Calls from people signed in to wp-admin are not agent calls, so they pass straight through. Agent calls cost one or two small database writes for the log.
+
+= What if the approver capability is removed from every role? =
+
+Approvals keep working. Administrators (anyone with `manage_options`) approve until a role has the `agent_governance_approve` capability again, Site Health flags it, and a notice gives it back to Administrator in one click. Deactivating the plugin takes the capability off every role, and activating gives it back.
 
 = Does it work with the MCP adapter's STDIO server? =
 

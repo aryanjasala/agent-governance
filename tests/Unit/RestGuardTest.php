@@ -75,6 +75,73 @@ final class RestGuardTest extends AgentTestCase {
 		$this->assertSame( $error, $this->guard->guard( $error, null, $this->request( 'DELETE', '/wp/v2/posts/1' ) ) );
 	}
 
+	public function test_an_agent_call_another_plugin_refused_first_is_logged(): void {
+		$this->as_app_password();
+		$frozen = new \WP_Error( 'site_read_only_mode', 'This site is frozen.', array( 'status' => 423 ) );
+
+		$this->assertSame( $frozen, $this->guard->guard( $frozen, null, $this->request( 'POST', '/wp/v2/posts/5', array(), array( 'title' => 'x' ) ) ) );
+
+		$row = $this->wpdb->rows( 'log' )[0];
+		$this->assertSame( 'refused', $row['decision'] );
+		$this->assertSame( 'site_read_only_mode', $row['result'] );
+		$this->assertSame( 'rest', $row['source'] );
+		$this->assertSame( '/wp/v2/posts/5', $row['target'] );
+		$this->assertSame( 'write', $row['kind'] );
+	}
+
+	public function test_a_refused_ability_run_is_logged_under_the_ability(): void {
+		$this->as_app_password();
+		$request = $this->request( 'DELETE', '/wp-abilities/v1/abilities/user-session-manager/sign-out-user/run' );
+		$request->shouldReceive( 'get_param' )->with( 'input' )->andReturn( array( 'user' => 952 ) );
+		\Brain\Monkey\Functions\expect( 'wp_get_ability' )->once()->with( 'user-session-manager/sign-out-user' )->andReturn( new \Agg_Ability_Double( array( 'annotations' => array( 'destructive' => true ) ) ) );
+
+		$this->guard->guard( new \WP_Error( 'site_read_only_mode', 'Frozen.' ), null, $request );
+
+		$row = $this->wpdb->rows( 'log' )[0];
+		$this->assertSame( 'ability', $row['source'] );
+		$this->assertSame( 'user-session-manager/sign-out-user', $row['target'] );
+		$this->assertSame( 'destructive', $row['kind'] );
+		$this->assertSame( 'DELETE', $row['method'] );
+		$this->assertSame( '{"user":952}', $row['input'] );
+	}
+
+	public function test_a_person_refused_by_another_plugin_is_not_logged(): void {
+		$this->guard->guard( new \WP_Error( 'site_read_only_mode', 'Frozen.' ), null, $this->request( 'POST', '/wp/v2/posts/5' ) );
+
+		$this->assertSame( array(), $this->wpdb->inserted );
+	}
+
+	public function test_a_rate_limited_response_gets_retry_after(): void {
+		$response = new class( array( 'code' => 'agent_governance_rate_limited', 'data' => array( 'status' => 429, 'retry_after' => 42 ) ) ) extends \Agg_Test_Response { // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			/** @var array<string, string> */
+			public $headers = array();
+
+			public function header( $key, $value ) {
+				$this->headers[ $key ] = $value;
+			}
+		};
+
+		$this->assertSame( $response, $this->guard->post_dispatch( $response, null, $this->request( 'GET', '/wp/v2/types' ) ) );
+		$this->assertSame( array( 'Retry-After' => '42' ), $response->headers );
+
+		$other = new class( array( 'code' => 'agent_governance_denied', 'data' => array( 'status' => 403 ) ) ) extends \Agg_Test_Response { // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+			/** @var array<string, string> */
+			public $headers = array();
+
+			public function header( $key, $value ) {
+				$this->headers[ $key ] = $value;
+			}
+		};
+		RestGuard::retry_after( $other );
+		$this->assertSame( array(), $other->headers );
+	}
+
+	public function test_the_abilities_api_is_left_to_the_ability_check_but_is_not_an_agent_route(): void {
+		$this->assertContains( '/wp-abilities/v1/', RestGuard::passthrough_routes() );
+		$this->assertContains( '/mcp/', RestGuard::passthrough_routes() );
+		$this->assertContains( '/batch/v1', RestGuard::passthrough_routes() );
+	}
+
 	public function test_routes_that_run_abilities_are_checked_per_ability(): void {
 		$this->as_app_password();
 

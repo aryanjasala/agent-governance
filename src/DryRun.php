@@ -82,11 +82,67 @@ final class DryRun {
 			}
 		}
 
+		if ( 'ability' === ( $call['source'] ?? '' ) ) {
+			return self::normalize( self::ability( (string) $call['target'], $call['input'] ?? null ) );
+		}
+
 		return self::normalize(
 			array(
 				'supported' => false,
-				'summary'   => __( 'No preview for this call. Check the input below before you approve it.', 'agent-governance' ),
+				'summary'   => __( 'No preview for this call.', 'agent-governance' ),
 			)
+		);
+	}
+
+	/**
+	 * What an ability says about itself, for abilities that give no preview of
+	 * their own: its label and what it does.
+	 *
+	 * @param string $name  Ability name.
+	 * @param mixed  $input Input.
+	 * @return array
+	 */
+	public static function ability( string $name, $input ): array {
+		$ability = function_exists( 'wp_get_ability' ) ? wp_get_ability( $name ) : null;
+		if ( ! $ability ) {
+			return array(
+				'supported' => false,
+				'summary'   => __( 'No preview for this call.', 'agent-governance' ),
+			);
+		}
+
+		$label       = trim( (string) $ability->get_label() );
+		$description = trim( (string) $ability->get_description() );
+		$label       = '' !== $label ? $label : $name;
+
+		$summary = '' !== $description
+			/* translators: 1: ability label, 2: what the ability says it does. */
+			? sprintf( __( 'Runs "%1$s": %2$s', 'agent-governance' ), $label, $description )
+			/* translators: %s: ability label. */
+			: sprintf( __( 'Runs "%s".', 'agent-governance' ), $label );
+
+		/**
+		 * Filters the preview built from an ability's own label and description,
+		 * for abilities that give no preview through agent_governance_dry_run. The
+		 * approver sees the input next to it.
+		 *
+		 * @param array  $preview supported (false: nothing was computed) and summary.
+		 * @param string $name    Ability name.
+		 * @param mixed  $input   Input.
+		 */
+		$preview = (array) apply_filters(
+			'agent_governance_ability_preview',
+			array(
+				'supported' => false,
+				'summary'   => $summary,
+			),
+			$name,
+			$input
+		);
+
+		return isset( $preview['summary'] ) ? $preview : array(
+			'supported' => false,
+			'summary'   => $summary,
 		);
 	}
 
@@ -182,7 +238,7 @@ final class DryRun {
 					/* translators: 1: post type name, 2: title. */
 					: sprintf( __( 'Moves the %1$s "%2$s" to the trash.', 'agent-governance' ), $label, $object['label'] ),
 				'object'    => $object,
-				'changes'   => $force ? array() : array( self::change( __( 'Status', 'agent-governance' ), $post->post_status, 'trash' ) ),
+				'changes'   => $force ? array() : array( self::change( __( 'Status', 'agent-governance' ), self::status_label( $post->post_status ), self::status_label( 'trash' ) ) ),
 			);
 		}
 
@@ -221,6 +277,10 @@ final class DryRun {
 			if ( 'password' === $field ) {
 				$before = '' === $before ? '' : Redactor::MASK;
 				$after  = '' === $after ? '' : Redactor::MASK;
+			}
+			if ( 'status' === $field && $before !== $after ) {
+				$before = '' === $before ? '' : self::status_label( $before );
+				$after  = self::status_label( $after );
 			}
 			if ( null === $post || $before !== $after ) {
 				$changes[] = self::change( ucfirst( str_replace( '_', ' ', $field ) ), $before, $after );
@@ -378,10 +438,10 @@ final class DryRun {
 			}
 		}
 		if ( array_key_exists( 'roles', $params ) ) {
-			$before = implode( ', ', (array) $user->roles );
-			$after  = implode( ', ', array_map( 'strval', (array) $params['roles'] ) );
+			$before = array_map( 'strval', (array) $user->roles );
+			$after  = array_map( 'strval', (array) $params['roles'] );
 			if ( $before !== $after ) {
-				$changes[] = self::change( __( 'Roles', 'agent-governance' ), $before, $after );
+				$changes[] = self::change( __( 'Roles', 'agent-governance' ), self::role_names( $before ), self::role_names( $after ) );
 			}
 		}
 
@@ -457,10 +517,15 @@ final class DryRun {
 
 		$changes = array();
 		if ( isset( $params['status'] ) ) {
+			$labels = array(
+				'active'         => __( 'Active', 'agent-governance' ),
+				'inactive'       => __( 'Inactive', 'agent-governance' ),
+				'network-active' => __( 'Network active', 'agent-governance' ),
+			);
 			$before = $active ? 'active' : 'inactive';
 			$after  = (string) $params['status'];
 			if ( $before !== $after ) {
-				$changes[] = self::change( __( 'Status', 'agent-governance' ), $before, $after );
+				$changes[] = self::change( __( 'Status', 'agent-governance' ), $labels[ $before ], $labels[ $after ] ?? $after );
 			}
 		}
 
@@ -546,6 +611,34 @@ final class DryRun {
 		}
 
 		return (string) wp_json_encode( $value );
+	}
+
+	/**
+	 * A post status as people read it, such as "Published" for publish.
+	 *
+	 * @param string $status Status slug.
+	 * @return string
+	 */
+	public static function status_label( string $status ): string {
+		$object = get_post_status_object( $status );
+
+		return $object && ! empty( $object->label ) ? (string) $object->label : $status;
+	}
+
+	/**
+	 * Role names as people read them, such as "Administrator" for administrator.
+	 *
+	 * @param string[] $roles Role slugs.
+	 * @return string
+	 */
+	private static function role_names( array $roles ): string {
+		$names = wp_roles()->role_names;
+		$out   = array();
+		foreach ( $roles as $role ) {
+			$out[] = isset( $names[ $role ] ) ? translate_user_role( (string) $names[ $role ] ) : $role;
+		}
+
+		return implode( ', ', $out );
 	}
 
 	/**
