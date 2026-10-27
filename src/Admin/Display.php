@@ -2,10 +2,10 @@
 /**
  * Small formatting helpers for the screens.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Admin;
+namespace AryanX\Axle\AgentGovernance\Admin;
 
 defined( 'ABSPATH' ) || exit;
 

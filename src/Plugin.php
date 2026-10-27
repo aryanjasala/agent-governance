@@ -2,16 +2,16 @@
 /**
  * Plugin bootstrap.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance;
+namespace AryanX\Axle\AgentGovernance;
 
-use AryanX\AgentGovernance\Admin\Page;
-use AryanX\AgentGovernance\Cli\Command;
-use AryanX\AgentGovernance\Guards\AbilityGuard;
-use AryanX\AgentGovernance\Guards\RestGuard;
-use AryanX\AgentGovernance\Health\SiteHealth;
+use AryanX\Axle\AgentGovernance\Admin\Page;
+use AryanX\Axle\AgentGovernance\Cli\Command;
+use AryanX\Axle\AgentGovernance\Guards\AbilityGuard;
+use AryanX\Axle\AgentGovernance\Guards\RestGuard;
+use AryanX\Axle\AgentGovernance\Health\SiteHealth;
 
 defined( 'ABSPATH' ) || exit;
 

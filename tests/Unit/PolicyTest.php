@@ -2,13 +2,13 @@
 /**
  * Tests for the policy engine.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Policy;
-use AryanX\AgentGovernance\Settings;
+use AryanX\Axle\AgentGovernance\Policy;
+use AryanX\Axle\AgentGovernance\Settings;
 use Brain\Monkey\Filters;
 use Mockery;
 

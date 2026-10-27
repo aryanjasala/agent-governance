@@ -2,13 +2,13 @@
 /**
  * Tests for the dry-run previews.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\DryRun;
-use AryanX\AgentGovernance\Redactor;
+use AryanX\Axle\AgentGovernance\DryRun;
+use AryanX\Axle\AgentGovernance\Redactor;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;
 

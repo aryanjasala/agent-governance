@@ -3,17 +3,17 @@
  * Tests for the clean-up, privacy tools, schema, version check, screen helpers
  * and Site Health.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Admin\Page;
-use AryanX\AgentGovernance\Cleanup;
-use AryanX\AgentGovernance\Health\SiteHealth;
-use AryanX\AgentGovernance\Privacy;
-use AryanX\AgentGovernance\Requirements;
-use AryanX\AgentGovernance\Schema;
+use AryanX\Axle\AgentGovernance\Admin\Page;
+use AryanX\Axle\AgentGovernance\Cleanup;
+use AryanX\Axle\AgentGovernance\Health\SiteHealth;
+use AryanX\Axle\AgentGovernance\Privacy;
+use AryanX\Axle\AgentGovernance\Requirements;
+use AryanX\Axle\AgentGovernance\Schema;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;
@@ -156,9 +156,9 @@ final class SupportTest extends AgentTestCase {
 	public function test_boot_stops_on_old_wordpress(): void {
 		Functions\when( 'get_bloginfo' )->justReturn( '6.8.3' );
 
-		\AryanX\AgentGovernance\Plugin::boot();
+		\AryanX\Axle\AgentGovernance\Plugin::boot();
 
-		$this->assertNull( \AryanX\AgentGovernance\Plugin::instance() );
+		$this->assertNull( \AryanX\Axle\AgentGovernance\Plugin::instance() );
 		$this->assertSame( 10, has_action( 'admin_init', array( Requirements::class, 'deactivate' ) ) );
 	}
 
@@ -223,12 +223,12 @@ final class SupportTest extends AgentTestCase {
 
 		$this->options['agent_governance_settings'] = array( 'paused' => true );
 		$this->wpdb->returns['get_var']             = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', null );
-		$health                                     = new SiteHealth( new \AryanX\AgentGovernance\Settings(), $this->requests );
+		$health                                     = new SiteHealth( new \AryanX\Axle\AgentGovernance\Settings(), $this->requests );
 		$this->assertSame( 'Agent writes are paused', $health->run()['label'] );
 
 		$this->options['agent_governance_settings'] = array();
 		$this->wpdb->returns['get_var']             = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', null );
-		$health                                     = new SiteHealth( new \AryanX\AgentGovernance\Settings(), $this->requests );
+		$health                                     = new SiteHealth( new \AryanX\Axle\AgentGovernance\Settings(), $this->requests );
 		$this->assertSame( 'good', $health->run()['status'] );
 	}
 }

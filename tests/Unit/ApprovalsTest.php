@@ -2,13 +2,13 @@
 /**
  * Tests for approving, rejecting, running and expiring held requests.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Approvals;
-use AryanX\AgentGovernance\Requests;
+use AryanX\Axle\AgentGovernance\Approvals;
+use AryanX\Axle\AgentGovernance\Requests;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Functions;
 use Mockery;

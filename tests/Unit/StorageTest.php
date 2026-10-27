@@ -2,13 +2,13 @@
 /**
  * Tests for the log and request tables.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Log;
-use AryanX\AgentGovernance\Requests;
+use AryanX\Axle\AgentGovernance\Log;
+use AryanX\Axle\AgentGovernance\Requests;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Filters;
 use Mockery;

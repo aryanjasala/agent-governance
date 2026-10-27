@@ -368,7 +368,7 @@ test.describe( 'Agent Governance', () => {
 		await page.goto( `${ SCREEN }&tab=requests&request=${ held }` );
 		await expect( page.locator( '.agg-request-title' ) ).toContainText( `Request #${ held }` );
 		await expect( page.locator( '.agg-no-approver' ) ).toContainText( 'No role has the agent_governance_approve capability' );
-		expect( JSON.parse( wpEval( 'echo wp_json_encode( ( new AryanX\\AgentGovernance\\Health\\SiteHealth( new AryanX\\AgentGovernance\\Settings(), new AryanX\\AgentGovernance\\Requests() ) )->run() );' ) ).status ).toBe( 'critical' );
+		expect( JSON.parse( wpEval( 'echo wp_json_encode( ( new AryanX\\Axle\\AgentGovernance\\Health\\SiteHealth( new AryanX\\Axle\\AgentGovernance\\Settings(), new AryanX\\Axle\\AgentGovernance\\Requests() ) )->run() );' ) ).status ).toBe( 'critical' );
 
 		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await page.getByRole( 'button', { name: 'Approve and run' } ).click();

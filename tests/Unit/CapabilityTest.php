@@ -3,14 +3,14 @@
  * Tests for the approver capability: the fallback, the notice, restore, and
  * removal on deactivation.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Capability;
-use AryanX\AgentGovernance\Health\SiteHealth;
-use AryanX\AgentGovernance\Schema;
+use AryanX\Axle\AgentGovernance\Capability;
+use AryanX\Axle\AgentGovernance\Health\SiteHealth;
+use AryanX\Axle\AgentGovernance\Schema;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;

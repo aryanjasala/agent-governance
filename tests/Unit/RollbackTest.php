@@ -2,13 +2,13 @@
 /**
  * Tests for recording post changes and rolling back a session.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Changes;
-use AryanX\AgentGovernance\Rollback;
+use AryanX\Axle\AgentGovernance\Changes;
+use AryanX\Axle\AgentGovernance\Rollback;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;

@@ -2,13 +2,13 @@
 /**
  * The Sessions tab: review and roll back an agent session.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Admin;
+namespace AryanX\Axle\AgentGovernance\Admin;
 
-use AryanX\AgentGovernance\Log;
-use AryanX\AgentGovernance\Rollback;
+use AryanX\Axle\AgentGovernance\Log;
+use AryanX\Axle\AgentGovernance\Rollback;
 
 defined( 'ABSPATH' ) || exit;
 

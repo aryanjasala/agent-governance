@@ -2,12 +2,12 @@
 /**
  * Tests for the REST guard.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Guards\RestGuard;
+use AryanX\Axle\AgentGovernance\Guards\RestGuard;
 use Brain\Monkey\Filters;
 use Mockery;
 
