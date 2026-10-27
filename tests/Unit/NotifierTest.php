@@ -2,12 +2,12 @@
 /**
  * Tests for telling approvers.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Notifier;
+use AryanX\Axle\AgentGovernance\Notifier;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;
 use Mockery;

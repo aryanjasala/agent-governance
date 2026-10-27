@@ -2,14 +2,14 @@
 /**
  * Applies the policy to REST calls agents make outside the Abilities API.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Guards;
+namespace AryanX\Axle\AgentGovernance\Guards;
 
-use AryanX\AgentGovernance\Classifier;
-use AryanX\AgentGovernance\Gate;
-use AryanX\AgentGovernance\Service;
+use AryanX\Axle\AgentGovernance\Classifier;
+use AryanX\Axle\AgentGovernance\Gate;
+use AryanX\Axle\AgentGovernance\Service;
 
 defined( 'ABSPATH' ) || exit;
 

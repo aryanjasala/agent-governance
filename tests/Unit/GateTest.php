@@ -2,12 +2,12 @@
 /**
  * Tests for applying decisions: logging, refusing and holding calls.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Gate;
+use AryanX\Axle\AgentGovernance\Gate;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;

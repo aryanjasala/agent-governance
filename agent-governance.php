@@ -12,17 +12,17 @@
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       agent-governance
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance;
+namespace AryanX\Axle\AgentGovernance;
 
 defined( 'ABSPATH' ) || exit;
 
 const VERSION     = '1.0.0';
 const PLUGIN_FILE = __FILE__;
 
-// PSR-4: AryanX\AgentGovernance\Foo\Bar lives in src/Foo/Bar.php.
+// PSR-4: AryanX\Axle\AgentGovernance\Foo\Bar lives in src/Foo/Bar.php.
 spl_autoload_register(
 	static function ( $class_name ) {
 		$prefix = __NAMESPACE__ . '\\';

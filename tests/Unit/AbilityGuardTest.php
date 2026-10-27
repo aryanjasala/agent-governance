@@ -2,12 +2,12 @@
 /**
  * Tests for the ability guard on WordPress 7.1 and on 6.9 and 7.0.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Guards\AbilityGuard;
+use AryanX\Axle\AgentGovernance\Guards\AbilityGuard;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;
 

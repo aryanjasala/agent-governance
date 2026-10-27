@@ -2,14 +2,14 @@
 /**
  * The Requests tab: the approval queue and one request.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Admin;
+namespace AryanX\Axle\AgentGovernance\Admin;
 
-use AryanX\AgentGovernance\Log;
-use AryanX\AgentGovernance\Notifier;
-use AryanX\AgentGovernance\Requests;
+use AryanX\Axle\AgentGovernance\Log;
+use AryanX\Axle\AgentGovernance\Notifier;
+use AryanX\Axle\AgentGovernance\Requests;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -156,7 +156,7 @@ final class RequestsView {
 
 		echo '<div class="agg-card"><h3>' . esc_html__( 'Input', 'agent-governance' ) . '</h3>';
 		echo '<p class="description">' . esc_html__( 'What the agent sent. Passwords, tokens and keys are hidden here.', 'agent-governance' ) . '</p>';
-		echo Display::json( \AryanX\AgentGovernance\Redactor::encode( json_decode( (string) $row['input'], true ), 'input' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
+		echo Display::json( \AryanX\Axle\AgentGovernance\Redactor::encode( json_decode( (string) $row['input'], true ), 'input' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 		echo '</div>';
 
 		if ( null !== $row['result'] && '' !== (string) $row['result'] ) {

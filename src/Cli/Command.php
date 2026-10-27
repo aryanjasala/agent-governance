@@ -2,19 +2,19 @@
 /**
  * WP-CLI commands.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Cli;
+namespace AryanX\Axle\AgentGovernance\Cli;
 
-use AryanX\AgentGovernance\Approvals;
-use AryanX\AgentGovernance\Capability;
-use AryanX\AgentGovernance\Cleanup;
-use AryanX\AgentGovernance\Log;
-use AryanX\AgentGovernance\Requests;
-use AryanX\AgentGovernance\Rollback;
-use AryanX\AgentGovernance\Schema;
-use AryanX\AgentGovernance\Settings;
+use AryanX\Axle\AgentGovernance\Approvals;
+use AryanX\Axle\AgentGovernance\Capability;
+use AryanX\Axle\AgentGovernance\Cleanup;
+use AryanX\Axle\AgentGovernance\Log;
+use AryanX\Axle\AgentGovernance\Requests;
+use AryanX\Axle\AgentGovernance\Rollback;
+use AryanX\Axle\AgentGovernance\Schema;
+use AryanX\Axle\AgentGovernance\Settings;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -233,7 +233,7 @@ final class Command {
 		}
 
 		$data            = self::request_row( $row );
-		$data['input']   = json_decode( \AryanX\AgentGovernance\Redactor::encode( json_decode( (string) $row['input'], true ), 'input' ), true );
+		$data['input']   = json_decode( \AryanX\Axle\AgentGovernance\Redactor::encode( json_decode( (string) $row['input'], true ), 'input' ), true );
 		$data['dry_run'] = json_decode( (string) $row['dry_run'], true );
 		$data['result']  = json_decode( (string) $row['result'], true );
 		$data['reason']  = (string) $row['reason'];

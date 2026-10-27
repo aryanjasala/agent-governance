@@ -2,10 +2,10 @@
 /**
  * Applies the policy to an agent call and records the outcome.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance;
+namespace AryanX\Axle\AgentGovernance;
 
 defined( 'ABSPATH' ) || exit;
 

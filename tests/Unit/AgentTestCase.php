@@ -2,23 +2,23 @@
 /**
  * Base class for Agent Governance unit tests.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Abilities;
-use AryanX\AgentGovernance\Approvals;
-use AryanX\AgentGovernance\Classifier;
-use AryanX\AgentGovernance\Context;
-use AryanX\AgentGovernance\DryRun;
-use AryanX\AgentGovernance\Gate;
-use AryanX\AgentGovernance\Log;
-use AryanX\AgentGovernance\Notifier;
-use AryanX\AgentGovernance\Policy;
-use AryanX\AgentGovernance\Requests;
-use AryanX\AgentGovernance\Rollback;
-use AryanX\AgentGovernance\Settings;
+use AryanX\Axle\AgentGovernance\Abilities;
+use AryanX\Axle\AgentGovernance\Approvals;
+use AryanX\Axle\AgentGovernance\Classifier;
+use AryanX\Axle\AgentGovernance\Context;
+use AryanX\Axle\AgentGovernance\DryRun;
+use AryanX\Axle\AgentGovernance\Gate;
+use AryanX\Axle\AgentGovernance\Log;
+use AryanX\Axle\AgentGovernance\Notifier;
+use AryanX\Axle\AgentGovernance\Policy;
+use AryanX\Axle\AgentGovernance\Requests;
+use AryanX\Axle\AgentGovernance\Rollback;
+use AryanX\Axle\AgentGovernance\Settings;
 use Brain\Monkey\Functions;
 
 require_once dirname( __DIR__ ) . '/Stubs/agent-governance.php';

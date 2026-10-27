@@ -2,18 +2,18 @@
 /**
  * Site Health check.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Health;
+namespace AryanX\Axle\AgentGovernance\Health;
 
-use AryanX\AgentGovernance\Admin\Page;
-use AryanX\AgentGovernance\Capability;
-use AryanX\AgentGovernance\Notifier;
-use AryanX\AgentGovernance\Requests;
-use AryanX\AgentGovernance\Schema;
-use AryanX\AgentGovernance\Service;
-use AryanX\AgentGovernance\Settings;
+use AryanX\Axle\AgentGovernance\Admin\Page;
+use AryanX\Axle\AgentGovernance\Capability;
+use AryanX\Axle\AgentGovernance\Notifier;
+use AryanX\Axle\AgentGovernance\Requests;
+use AryanX\Axle\AgentGovernance\Schema;
+use AryanX\Axle\AgentGovernance\Service;
+use AryanX\Axle\AgentGovernance\Settings;
 
 defined( 'ABSPATH' ) || exit;
 

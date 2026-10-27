@@ -2,10 +2,10 @@
 /**
  * Contract for classes that hook into WordPress.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance;
+namespace AryanX\Axle\AgentGovernance;
 
 defined( 'ABSPATH' ) || exit;
 

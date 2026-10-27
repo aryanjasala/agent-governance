@@ -2,10 +2,10 @@
 /**
  * Puts back what an agent session changed.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance;
+namespace AryanX\Axle\AgentGovernance;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -246,7 +246,7 @@ final class Rollback {
 	 * @return string URL, or empty.
 	 */
 	public static function undo_url(): string {
-		$url = class_exists( '\AryanX\ActivityLogWithUndo\Plugin' ) ? admin_url( 'tools.php?page=activity-log-with-undo' ) : '';
+		$url = class_exists( '\AryanX\Axle\ActivityLogWithUndo\Plugin' ) ? admin_url( 'tools.php?page=activity-log-with-undo' ) : '';
 
 		/**
 		 * Filters the link offered for changes a session rollback cannot undo.

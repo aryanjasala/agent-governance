@@ -2,10 +2,10 @@
 /**
  * Base class for unit tests.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
 use Brain\Monkey;
 use Brain\Monkey\Functions;

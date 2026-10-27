@@ -2,12 +2,12 @@
 /**
  * Tests for settings, rules and the pause.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Settings;
+use AryanX\Axle\AgentGovernance\Settings;
 use Brain\Monkey\Actions;
 use Brain\Monkey\Filters;
 use Mockery;

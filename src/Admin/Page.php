@@ -2,21 +2,21 @@
 /**
  * Tools > Agent Governance.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Admin;
+namespace AryanX\Axle\AgentGovernance\Admin;
 
-use AryanX\AgentGovernance\Approvals;
-use AryanX\AgentGovernance\Log;
-use AryanX\AgentGovernance\Notifier;
-use AryanX\AgentGovernance\Requests;
-use AryanX\AgentGovernance\Rollback;
-use AryanX\AgentGovernance\Service;
-use AryanX\AgentGovernance\Settings;
+use AryanX\Axle\AgentGovernance\Approvals;
+use AryanX\Axle\AgentGovernance\Log;
+use AryanX\Axle\AgentGovernance\Notifier;
+use AryanX\Axle\AgentGovernance\Requests;
+use AryanX\Axle\AgentGovernance\Rollback;
+use AryanX\Axle\AgentGovernance\Service;
+use AryanX\Axle\AgentGovernance\Settings;
 
-use const AryanX\AgentGovernance\PLUGIN_FILE;
-use const AryanX\AgentGovernance\VERSION;
+use const AryanX\Axle\AgentGovernance\PLUGIN_FILE;
+use const AryanX\Axle\AgentGovernance\VERSION;
 
 defined( 'ABSPATH' ) || exit;
 

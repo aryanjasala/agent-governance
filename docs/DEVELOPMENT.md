@@ -104,4 +104,4 @@ Each leg starts from an empty site, and the site is stopped at the end (`--keep`
 
 ## Code layout
 
-Classes live in `src/` under the `AryanX\AgentGovernance\` namespace and follow PSR-4: `AryanX\AgentGovernance\Admin\Foo` is `src/Admin/Foo.php`. The main plugin file registers a small PSR-4 autoloader, so no `vendor/` folder ships with the plugin. Every class that adds hooks implements `Service` and is wired up in `Plugin`.
+Classes live in `src/` under the `AryanX\Axle\AgentGovernance\` namespace and follow PSR-4: `AryanX\Axle\AgentGovernance\Admin\Foo` is `src/Admin/Foo.php`. The main plugin file registers a small PSR-4 autoloader, so no `vendor/` folder ships with the plugin. Every class that adds hooks implements `Service` and is wired up in `Plugin`.

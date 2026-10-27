@@ -2,12 +2,12 @@
 /**
  * Tells approvers about held requests.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance;
+namespace AryanX\Axle\AgentGovernance;
 
-use AryanX\AgentGovernance\Admin\Page;
+use AryanX\Axle\AgentGovernance\Admin\Page;
 
 defined( 'ABSPATH' ) || exit;
 

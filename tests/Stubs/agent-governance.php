@@ -3,7 +3,7 @@
  * Test doubles for Agent Governance: an in-memory $wpdb, and the WordPress
  * classes the template stubs do not cover.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
 // phpcs:ignoreFile
@@ -21,8 +21,8 @@ foreach ( array(
 }
 
 // The main plugin file defines these; the tests do not load it.
-defined( 'AryanX\\AgentGovernance\\PLUGIN_FILE' ) || define( 'AryanX\\AgentGovernance\\PLUGIN_FILE', dirname( __DIR__, 2 ) . '/agent-governance.php' );
-defined( 'AryanX\\AgentGovernance\\VERSION' ) || define( 'AryanX\\AgentGovernance\\VERSION', '1.0.0' );
+defined( 'AryanX\\Axle\\AgentGovernance\\PLUGIN_FILE' ) || define( 'AryanX\\Axle\\AgentGovernance\\PLUGIN_FILE', dirname( __DIR__, 2 ) . '/agent-governance.php' );
+defined( 'AryanX\\Axle\\AgentGovernance\\VERSION' ) || define( 'AryanX\\Axle\\AgentGovernance\\VERSION', '1.0.0' );
 
 if ( ! class_exists( 'WP_Filter_Sentinel' ) ) {
 	/**

@@ -2,15 +2,15 @@
 /**
  * Applies the policy to every ability an agent runs.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Guards;
+namespace AryanX\Axle\AgentGovernance\Guards;
 
-use AryanX\AgentGovernance\Context;
-use AryanX\AgentGovernance\Gate;
-use AryanX\AgentGovernance\Service;
-use AryanX\AgentGovernance\Settings;
+use AryanX\Axle\AgentGovernance\Context;
+use AryanX\Axle\AgentGovernance\Gate;
+use AryanX\Axle\AgentGovernance\Service;
+use AryanX\Axle\AgentGovernance\Settings;
 
 defined( 'ABSPATH' ) || exit;
 

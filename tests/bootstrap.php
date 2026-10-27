@@ -4,7 +4,7 @@
  * classes the plugin touches. WordPress functions are mocked per test with
  * Brain Monkey, so WordPress itself is not loaded.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
 require dirname( __DIR__ ) . '/vendor/autoload.php';

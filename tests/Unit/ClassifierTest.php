@@ -2,10 +2,10 @@
 /**
  * Tests for telling agent calls apart and naming the agent.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
 use Brain\Monkey\Filters;
 use Mockery;
@@ -73,7 +73,7 @@ final class ClassifierTest extends AgentTestCase {
 	}
 
 	public function test_the_abilities_api_is_not_an_agent_route_by_default(): void {
-		$this->assertSame( array( '/mcp/' => 'mcp' ), \AryanX\AgentGovernance\Classifier::agent_routes() );
+		$this->assertSame( array( '/mcp/' => 'mcp' ), \AryanX\Axle\AgentGovernance\Classifier::agent_routes() );
 	}
 
 	public function test_the_is_agent_request_filter_can_count_cookie_ability_calls_again(): void {

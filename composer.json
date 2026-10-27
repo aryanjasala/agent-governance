@@ -25,12 +25,12 @@
   },
   "autoload": {
     "psr-4": {
-      "AryanX\\AgentGovernance\\": "src/"
+      "AryanX\\Axle\\AgentGovernance\\": "src/"
     }
   },
   "autoload-dev": {
     "psr-4": {
-      "AryanX\\AgentGovernance\\Tests\\": "tests/"
+      "AryanX\\Axle\\AgentGovernance\\Tests\\": "tests/"
     }
   },
   "config": {

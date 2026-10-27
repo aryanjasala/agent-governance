@@ -2,10 +2,10 @@
 /**
  * Database tables, the approver capability and the clean-up schedule.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance;
+namespace AryanX\Axle\AgentGovernance;
 
 defined( 'ABSPATH' ) || exit;
 

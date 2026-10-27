@@ -3,16 +3,16 @@
  * Tests for what the screens show: labels instead of raw values, the menu
  * label, the status filter and the preview copy.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Admin\ActivityView;
-use AryanX\AgentGovernance\Admin\Display;
-use AryanX\AgentGovernance\Admin\Page;
-use AryanX\AgentGovernance\Admin\RequestsView;
-use AryanX\AgentGovernance\Admin\SessionsView;
+use AryanX\Axle\AgentGovernance\Admin\ActivityView;
+use AryanX\Axle\AgentGovernance\Admin\Display;
+use AryanX\Axle\AgentGovernance\Admin\Page;
+use AryanX\Axle\AgentGovernance\Admin\RequestsView;
+use AryanX\Axle\AgentGovernance\Admin\SessionsView;
 use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;
 

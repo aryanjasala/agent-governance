@@ -2,12 +2,12 @@
 /**
  * Tests for redaction and size caps.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Tests\Unit;
+namespace AryanX\Axle\AgentGovernance\Tests\Unit;
 
-use AryanX\AgentGovernance\Redactor;
+use AryanX\Axle\AgentGovernance\Redactor;
 use Brain\Monkey\Filters;
 
 /**

@@ -2,13 +2,13 @@
 /**
  * The Activity tab: the audit log.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance\Admin;
+namespace AryanX\Axle\AgentGovernance\Admin;
 
-use AryanX\AgentGovernance\Log;
-use AryanX\AgentGovernance\Settings;
+use AryanX\Axle\AgentGovernance\Log;
+use AryanX\Axle\AgentGovernance\Settings;
 
 defined( 'ABSPATH' ) || exit;
 

@@ -2,12 +2,12 @@
 /**
  * The approver capability: who has it, and what happens when nobody does.
  *
- * @package AryanX\AgentGovernance
+ * @package AryanX\Axle\AgentGovernance
  */
 
-namespace AryanX\AgentGovernance;
+namespace AryanX\Axle\AgentGovernance;
 
-use AryanX\AgentGovernance\Admin\Page;
+use AryanX\Axle\AgentGovernance\Admin\Page;
 
 defined( 'ABSPATH' ) || exit;
 
