@@ -155,7 +155,7 @@ final class GateTest extends AgentTestCase {
 
 	public function test_a_call_another_plugin_refused_is_logged_as_refused(): void {
 		$this->as_app_password();
-		$error = new \WP_Error( 'site_read_only_mode', 'This site is frozen.', array( 'status' => 423 ) );
+		$error = new \WP_Error( 'axle_read_only_mode', 'This site is frozen.', array( 'status' => 423 ) );
 		Actions\expectDone( 'agent_governance_call_refused' )->once()->with( Mockery::type( 'array' ), Mockery::type( 'array' ), $error );
 
 		$id = $this->gate->refused( $this->call( 'destructive' ), $error );
@@ -163,8 +163,8 @@ final class GateTest extends AgentTestCase {
 		$this->assertGreaterThan( 0, $id );
 		$row = $this->wpdb->rows( 'log' )[0];
 		$this->assertSame( 'refused', $row['decision'] );
-		$this->assertSame( 'site_read_only_mode', $row['reason'] );
-		$this->assertSame( 'site_read_only_mode', $row['result'] );
+		$this->assertSame( 'axle_read_only_mode', $row['reason'] );
+		$this->assertSame( 'axle_read_only_mode', $row['result'] );
 		$this->assertSame( 'my/save', $row['target'] );
 		$this->assertSame( 'app:aaaa-1111', $row['identity'] );
 		$this->assertStringContainsString( '[redacted]', $row['input'] );
@@ -173,7 +173,7 @@ final class GateTest extends AgentTestCase {
 	public function test_a_refused_call_that_is_not_an_agents_is_not_logged(): void {
 		Actions\expectDone( 'agent_governance_call_refused' )->never();
 
-		$this->assertSame( 0, $this->gate->refused( $this->call(), new \WP_Error( 'site_read_only_mode', 'Frozen.' ) ) );
+		$this->assertSame( 0, $this->gate->refused( $this->call(), new \WP_Error( 'axle_read_only_mode', 'Frozen.' ) ) );
 		$this->assertSame( array(), $this->wpdb->inserted );
 	}
 
@@ -181,15 +181,15 @@ final class GateTest extends AgentTestCase {
 		$this->as_app_password();
 
 		$frame = $this->gate->enter( $this->call() );
-		$this->gate->leave( $frame, new \WP_Error( 'site_read_only_mode', 'Frozen.' ) );
+		$this->gate->leave( $frame, new \WP_Error( 'axle_read_only_mode', 'Frozen.' ) );
 
 		$row = $this->wpdb->rows( 'log' )[0];
 		$this->assertSame( 'refused', $row['decision'] );
-		$this->assertSame( 'site_read_only_mode', $row['reason'] );
+		$this->assertSame( 'axle_read_only_mode', $row['reason'] );
 	}
 
 	public function test_the_refusal_codes_filter(): void {
-		$this->assertSame( array( 'site_read_only_mode' ), Gate::refusal_codes() );
+		$this->assertSame( array( 'axle_read_only_mode', 'site_read_only_mode' ), Gate::refusal_codes() );
 
 		Filters\expectApplied( 'agent_governance_refusal_codes' )->once()->andReturn( array( 'my_freeze', '', 3 ) );
 		$this->assertSame( array( 'my_freeze', '3' ), Gate::refusal_codes() );

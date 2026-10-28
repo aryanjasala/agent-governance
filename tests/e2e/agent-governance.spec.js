@@ -4,7 +4,7 @@ const { COMPOSE_DIR } = require( './utils/config' );
 
 const SCREEN = '/wp-admin/tools.php?page=agent-governance';
 const MCP_ADAPTER = 'https://github.com/WordPress/mcp-adapter/releases/download/v0.7.1/mcp-adapter.zip';
-const READ_ONLY_MODE = 'https://github.com/aryanjasala/site-read-only-mode/releases/download/v2.0.1/site-read-only-mode.zip';
+const READ_ONLY_MODE = 'https://github.com/aryanjasala/axle-read-only-mode/releases/download/v3.0.0/axle-read-only-mode.zip';
 
 /** Application passwords this suite made, removed again at the end. */
 const madePasswords = new Set();
@@ -557,49 +557,49 @@ test.describe( 'Agent Governance', () => {
 		} );
 	} );
 
-	test.describe( 'with Site Read-Only Mode', () => {
+	test.describe( 'with Axle Read-Only Mode', () => {
 		let installed = false;
 		let wasInstalled = false;
 		let wasActive = false;
 
 		test.beforeAll( () => {
-			wasInstalled = succeeds( 'plugin', 'is-installed', 'site-read-only-mode' );
-			wasActive = wasInstalled && succeeds( 'plugin', 'is-active', 'site-read-only-mode' );
-			installed = wasInstalled ? succeeds( 'plugin', 'activate', 'site-read-only-mode' ) : succeeds( 'plugin', 'install', READ_ONLY_MODE, '--activate' );
+			wasInstalled = succeeds( 'plugin', 'is-installed', 'axle-read-only-mode' );
+			wasActive = wasInstalled && succeeds( 'plugin', 'is-active', 'axle-read-only-mode' );
+			installed = wasInstalled ? succeeds( 'plugin', 'activate', 'axle-read-only-mode' ) : succeeds( 'plugin', 'install', READ_ONLY_MODE, '--activate' );
 		} );
 
 		test.afterAll( () => {
-			succeeds( 'site-read-only-mode', 'off' );
+			succeeds( 'axle-read-only-mode', 'off' );
 			if ( ! wasActive ) {
-				succeeds( 'plugin', 'deactivate', 'site-read-only-mode' );
+				succeeds( 'plugin', 'deactivate', 'axle-read-only-mode' );
 			}
 			// Only remove what this suite downloaded; a mounted copy is someone's source.
 			if ( ! wasInstalled ) {
-				succeeds( 'plugin', 'delete', 'site-read-only-mode' );
+				succeeds( 'plugin', 'delete', 'axle-read-only-mode' );
 			}
 		} );
 
 		test( 'agent calls a freeze refuses are in the audit log as refused', async ( { page } ) => {
-			test.skip( ! installed, 'Site Read-Only Mode could not be downloaded.' );
+			test.skip( ! installed, 'Axle Read-Only Mode could not be downloaded.' );
 			const bot = await agent( 'frozen-bot' );
 			const id = newPost( 'Frozen post' );
 
-			wp( 'site-read-only-mode', 'on', '--minutes=0' );
+			wp( 'axle-read-only-mode', 'on', '--minutes=0' );
 			try {
 				const write = await bot.call( 'POST', `/wp/v2/posts/${ id }`, { title: 'Changed while frozen' } );
 				expect( write.status ).toBe( 423 );
 				const ability = await bot.ability( 'agg-fixture/trash-post', { id } );
 				expect( ability.status ).toBe( 423 );
 			} finally {
-				wp( 'site-read-only-mode', 'off' );
+				wp( 'axle-read-only-mode', 'off' );
 			}
 
 			expect( post( id, 'post_title' ) ).toBe( 'Frozen post' );
 			expect( post( id, 'post_status' ) ).toBe( 'publish' );
 			const rows = sql( `SELECT source, target, decision, result FROM wp_agent_governance_log WHERE identity = '${ bot.identity }' ORDER BY id` );
 			expect( rows ).toEqual( [
-				[ 'rest', `/wp/v2/posts/${ id }`, 'refused', 'site_read_only_mode' ],
-				[ 'ability', 'agg-fixture/trash-post', 'refused', 'site_read_only_mode' ],
+				[ 'rest', `/wp/v2/posts/${ id }`, 'refused', 'axle_read_only_mode' ],
+				[ 'ability', 'agg-fixture/trash-post', 'refused', 'axle_read_only_mode' ],
 			] );
 			expect( Number( one( `SELECT COUNT(*) FROM wp_agent_governance_requests WHERE identity = '${ bot.identity }'` ) ) ).toBe( 0 );
 			expect( JSON.parse( wp( 'agent-governance', 'log', `--identity=${ bot.uuid }`, '--status=refused', '--format=json' ) ) ).toHaveLength( 2 );
@@ -608,7 +608,7 @@ test.describe( 'Agent Governance', () => {
 			const shown = page.locator( '.agg-activity tbody tr' );
 			await expect( shown ).toHaveCount( 2 );
 			await expect( shown.first() ).toContainText( 'Refused' );
-			await expect( shown.first() ).toContainText( 'Site Read-Only Mode freeze' );
+			await expect( shown.first() ).toContainText( 'Axle Read-Only Mode freeze' );
 			await bot.context.dispose();
 		} );
 	} );

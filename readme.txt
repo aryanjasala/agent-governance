@@ -37,7 +37,7 @@ Agent Governance adds that.
 
 **Audit log and rollback:**
 
-* Every agent call: who, what, the input (with passwords, tokens and keys removed), the outcome and how long it took. Calls another plugin refused, such as Site Read-Only Mode during a freeze, are in the log too.
+* Every agent call: who, what, the input (with passwords, tokens and keys removed), the outcome and how long it took. Calls another plugin refused, such as Axle Read-Only Mode during a freeze, are in the log too.
 * Calls are grouped into sessions. **Roll back session** restores each post the agent edited to the revision saved before its first change and moves posts it created to the trash, after showing you the plan. Other changes are listed as not reversible here.
 
 Free and open source under the GPL. No pro version, no upsells, no ads in wp-admin, no tracking. And it stays that way.

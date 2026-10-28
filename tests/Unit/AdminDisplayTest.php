@@ -44,6 +44,7 @@ final class AdminDisplayTest extends AgentTestCase {
 	public function test_result_codes_are_shown_in_words(): void {
 		$this->assertSame( 'OK', Display::result( 'ok' ) );
 		$this->assertSame( 'Waiting for approval', Display::result( 'agent_governance_pending' ) );
+		$this->assertSame( 'Refused: the site is frozen', Display::result( 'axle_read_only_mode' ) );
 		$this->assertSame( 'Refused: the site is frozen', Display::result( 'site_read_only_mode' ) );
 		$this->assertSame( 'HTTP 404', Display::result( 'http_404' ) );
 		$this->assertSame( 'my_plugin_error', Display::result( 'my_plugin_error' ) );
@@ -56,7 +57,8 @@ final class AdminDisplayTest extends AgentTestCase {
 	}
 
 	public function test_a_refusal_shows_who_refused(): void {
-		$this->assertSame( 'Site Read-Only Mode freeze', Display::reason( 'site_read_only_mode' ) );
+		$this->assertSame( 'Axle Read-Only Mode freeze', Display::reason( 'axle_read_only_mode' ) );
+		$this->assertSame( 'Axle Read-Only Mode freeze', Display::reason( 'site_read_only_mode' ) );
 		$this->assertSame( 'Over the rate limit', Display::reason( 'agent_governance_rate_limited' ) );
 		$this->assertStringContainsString( '>Refused<', Display::badge( 'refused' ) );
 		$this->assertSame( 'Executed', Display::outcome( 'executed' ) );

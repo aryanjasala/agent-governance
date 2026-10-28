@@ -77,13 +77,13 @@ final class RestGuardTest extends AgentTestCase {
 
 	public function test_an_agent_call_another_plugin_refused_first_is_logged(): void {
 		$this->as_app_password();
-		$frozen = new \WP_Error( 'site_read_only_mode', 'This site is frozen.', array( 'status' => 423 ) );
+		$frozen = new \WP_Error( 'axle_read_only_mode', 'This site is frozen.', array( 'status' => 423 ) );
 
 		$this->assertSame( $frozen, $this->guard->guard( $frozen, null, $this->request( 'POST', '/wp/v2/posts/5', array(), array( 'title' => 'x' ) ) ) );
 
 		$row = $this->wpdb->rows( 'log' )[0];
 		$this->assertSame( 'refused', $row['decision'] );
-		$this->assertSame( 'site_read_only_mode', $row['result'] );
+		$this->assertSame( 'axle_read_only_mode', $row['result'] );
 		$this->assertSame( 'rest', $row['source'] );
 		$this->assertSame( '/wp/v2/posts/5', $row['target'] );
 		$this->assertSame( 'write', $row['kind'] );
@@ -95,7 +95,7 @@ final class RestGuardTest extends AgentTestCase {
 		$request->shouldReceive( 'get_param' )->with( 'input' )->andReturn( array( 'user' => 952 ) );
 		\Brain\Monkey\Functions\expect( 'wp_get_ability' )->once()->with( 'user-session-manager/sign-out-user' )->andReturn( new \Agg_Ability_Double( array( 'annotations' => array( 'destructive' => true ) ) ) );
 
-		$this->guard->guard( new \WP_Error( 'site_read_only_mode', 'Frozen.' ), null, $request );
+		$this->guard->guard( new \WP_Error( 'axle_read_only_mode', 'Frozen.' ), null, $request );
 
 		$row = $this->wpdb->rows( 'log' )[0];
 		$this->assertSame( 'ability', $row['source'] );
@@ -106,7 +106,7 @@ final class RestGuardTest extends AgentTestCase {
 	}
 
 	public function test_a_person_refused_by_another_plugin_is_not_logged(): void {
-		$this->guard->guard( new \WP_Error( 'site_read_only_mode', 'Frozen.' ), null, $this->request( 'POST', '/wp/v2/posts/5' ) );
+		$this->guard->guard( new \WP_Error( 'axle_read_only_mode', 'Frozen.' ), null, $this->request( 'POST', '/wp/v2/posts/5' ) );
 
 		$this->assertSame( array(), $this->wpdb->inserted );
 	}
