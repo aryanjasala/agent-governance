@@ -89,7 +89,7 @@ final class RestGuard implements Service {
 	public function guard( $result, $server, $request ) {
 		if ( null !== $result ) {
 			// Another plugin answered first. When it refused an agent call, such as
-			// Site Read-Only Mode during a freeze, the call still belongs in the log.
+			// Axle Read-Only Mode during a freeze, the call still belongs in the log.
 			if ( is_wp_error( $result ) ) {
 				$this->gate->refused( self::refused_call( $request ), $result );
 			}

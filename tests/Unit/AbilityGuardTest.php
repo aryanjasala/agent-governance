@@ -185,7 +185,7 @@ final class AbilityGuardTest extends AgentTestCase {
 
 	public function test_on_71_another_plugins_answer_is_kept(): void {
 		$guard = new AbilityGuard( $this->gate, $this->context, true );
-		$error = new \WP_Error( 'site_read_only_mode', 'Frozen.' );
+		$error = new \WP_Error( 'axle_read_only_mode', 'Frozen.' );
 
 		$this->assertSame( $error, $guard->pre_execute( $error, 'my/save', array() ) );
 	}
@@ -256,7 +256,7 @@ final class AbilityGuardTest extends AgentTestCase {
 	public function test_on_71_an_agent_call_another_plugin_refused_is_logged(): void {
 		$this->as_app_password();
 		$guard  = new AbilityGuard( $this->gate, $this->context, true );
-		$frozen = new \WP_Error( 'site_read_only_mode', 'Frozen.', array( 'status' => 423 ) );
+		$frozen = new \WP_Error( 'axle_read_only_mode', 'Frozen.', array( 'status' => 423 ) );
 
 		$this->assertSame( $frozen, $guard->pre_execute( $frozen, 'my/delete', array( 'id' => 3 ), $this->ability( array( 'destructive' => true ) ) ) );
 

@@ -194,7 +194,7 @@ final class Gate {
 			return;
 		}
 
-		// Another plugin refused it from inside, such as Site Read-Only Mode's ability wrapper on 6.9 and 7.0.
+		// Another plugin refused it from inside, such as Axle Read-Only Mode's ability wrapper on 6.9 and 7.0.
 		$refused = is_wp_error( $result ) && in_array( $result->get_error_code(), self::refusal_codes(), true );
 
 		$this->log->add(
@@ -232,7 +232,7 @@ final class Gate {
 
 	/**
 	 * Logs an agent call another plugin refused before Agent Governance could
-	 * decide it, such as a write Site Read-Only Mode stopped during a freeze.
+	 * decide it, such as a write Axle Read-Only Mode stopped during a freeze.
 	 *
 	 * @param array     $call  source (ability or rest), target, method, kind, input.
 	 * @param \WP_Error $error What the other plugin returned.
@@ -268,7 +268,7 @@ final class Gate {
 
 		/**
 		 * Fires when another plugin refused an agent call before it ran, such as
-		 * Site Read-Only Mode during a freeze.
+		 * Axle Read-Only Mode during a freeze.
 		 *
 		 * @param array     $call     The call: source, target, method, kind and input.
 		 * @param array     $identity The agent: key, label, user_id, via and session.
@@ -292,9 +292,9 @@ final class Gate {
 		 * Calls another plugin stops before they reach Agent Governance are always
 		 * logged as refused, whatever their code.
 		 *
-		 * @param string[] $codes Default site_read_only_mode (a freeze).
+		 * @param string[] $codes Default axle_read_only_mode and site_read_only_mode (a freeze; the second is what Read-Only Mode sent before 3.0).
 		 */
-		$codes = (array) apply_filters( 'agent_governance_refusal_codes', array( 'site_read_only_mode' ) );
+		$codes = (array) apply_filters( 'agent_governance_refusal_codes', array( 'axle_read_only_mode', 'site_read_only_mode' ) );
 
 		return array_values( array_filter( array_map( 'strval', $codes ) ) );
 	}

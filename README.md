@@ -37,7 +37,7 @@ AI agents now work on WordPress through the Abilities API, the MCP adapter and a
 - **Approve and run** as the user the agent signed in as, or **reject** with a reason the agent sees. Unanswered requests expire after a day. An agent can never approve its own request
 - **Policies** per agent, user, role or for every agent, with `*` patterns on abilities and REST routes: allow, deny or hold for approval
 - **Rate limit** per agent with a `Retry-After` header, and a **Pause** button that refuses every agent write while reads keep working
-- **Audit log** of every call with the input (secrets removed), outcome and timing, grouped into **sessions**. Calls another plugin refused, such as Site Read-Only Mode during a freeze, are in it too
+- **Audit log** of every call with the input (secrets removed), outcome and timing, grouped into **sessions**. Calls another plugin refused, such as Axle Read-Only Mode during a freeze, are in it too
 - **Roll back a session**: edited posts go back to the revision saved before the agent touched them, created posts go to the trash, after a preview
 - **Never without an approver**: if a role clean-up takes the approver capability off every role, administrators still approve, and a notice gives it back in one click
 - **Privacy** export and erase, **WP-CLI** for everything, abilities, and a **Site Health** check

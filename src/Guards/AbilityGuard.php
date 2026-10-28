@@ -18,7 +18,7 @@ defined( 'ABSPATH' ) || exit;
  * On WordPress 7.1 and later, the `wp_pre_execute_ability` filter decides
  * before an ability runs. On 6.9 and 7.0, which have no such filter, a wrapper
  * around each ability's execute callback decides. `WP_Filter_Sentinel` arrived
- * with the filter, so it tells the two apart, the way Site Read-Only Mode does.
+ * with the filter, so it tells the two apart, the way Axle Read-Only Mode does.
  *
  * The wrapper is added on every version, because it is also where an allowed
  * call is timed, its post changes recorded and its log row written.
@@ -117,7 +117,7 @@ final class AbilityGuard implements Service {
 
 		$ability = is_object( $ability ) ? $ability : ( function_exists( 'wp_get_ability' ) ? wp_get_ability( $name ) : null );
 
-		// Another plugin already answered, such as Site Read-Only Mode during a freeze.
+		// Another plugin already answered, such as Axle Read-Only Mode during a freeze.
 		// When it refused an agent's call, the call still belongs in the log.
 		if ( ! is_a( $pre, 'WP_Filter_Sentinel' ) ) {
 			if ( is_wp_error( $pre ) ) {

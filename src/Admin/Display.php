@@ -135,6 +135,7 @@ final class Display {
 				'agent_governance_paused'       => __( 'Agent writes are paused', 'agent-governance' ),
 				'agent_governance_rate_limited' => __( 'Over the rate limit', 'agent-governance' ),
 				'agent_governance_exception'    => __( 'The call threw an error', 'agent-governance' ),
+				'axle_read_only_mode'           => __( 'Refused: the site is frozen', 'agent-governance' ),
 				'site_read_only_mode'           => __( 'Refused: the site is frozen', 'agent-governance' ),
 				'rest_forbidden'                => __( 'Not allowed', 'agent-governance' ),
 				'rest_no_route'                 => __( 'No such route', 'agent-governance' ),
@@ -232,7 +233,8 @@ final class Display {
 			'filter'              => __( 'Custom code', 'agent-governance' ),
 			'refused'             => __( 'Another plugin', 'agent-governance' ),
 			// A refusal by another plugin stores its error code as the reason.
-			'site_read_only_mode' => __( 'Site Read-Only Mode freeze', 'agent-governance' ),
+			'axle_read_only_mode' => __( 'Axle Read-Only Mode freeze', 'agent-governance' ),
+			'site_read_only_mode' => __( 'Axle Read-Only Mode freeze', 'agent-governance' ),
 		);
 
 		if ( isset( $labels[ $reason ] ) ) {

@@ -35,7 +35,7 @@ The policy engine decides each call in this order:
 
 `agent_governance_policy` then has the last word on every call, except that it cannot let a write through while agents are paused.
 
-A call another plugin refuses before Agent Governance sees it, such as a write Site Read-Only Mode stops during a freeze, is still logged, as **refused** with the other plugin's error code. So is an allowed call that another plugin refuses from inside with one of the codes in `agent_governance_refusal_codes`.
+A call another plugin refuses before Agent Governance sees it, such as a write Axle Read-Only Mode stops during a freeze, is still logged, as **refused** with the other plugin's error code. So is an allowed call that another plugin refuses from inside with one of the codes in `agent_governance_refusal_codes`.
 
 ### Rules
 
@@ -161,7 +161,7 @@ While an agent call runs, every post it changes is recorded against the call:
 | `agent_governance_menu_title` | filter | `( string $title )`. The menu label under Tools. Default "AI Agents", short enough to fit on one line with the count. An empty value keeps the default |
 | `agent_governance_via_labels` | filter | `( array $labels )`. How a call came in, as shown on the screens: `app-password` => "Application password", `mcp` => "MCP", `custom` => "Custom code" |
 | `agent_governance_result_labels` | filter | `( array $labels )`. Result codes in words on the Activity tab, such as `agent_governance_pending` => "Waiting for approval". Other codes show as they are |
-| `agent_governance_refusal_codes` | filter | `( string[] $codes )`. Error codes that mean another plugin refused an allowed call from inside it, so it is logged as refused. Default `site_read_only_mode` |
+| `agent_governance_refusal_codes` | filter | `( string[] $codes )`. Error codes that mean another plugin refused an allowed call from inside it, so it is logged as refused. Default `axle_read_only_mode` and `site_read_only_mode` (Read-Only Mode before 3.0) |
 | `agent_governance_dispatch_abilities` | filter | `( string[] $abilities )`. Abilities that only run other abilities. Default `mcp-adapter/execute-ability` |
 | `agent_governance_passthrough_routes` | filter | `( string[] $routes )`. REST routes the REST check leaves to what runs inside them. Default the agent routes, `/wp-abilities/v1/` and `/batch/v1` |
 | `agent_governance_untracked_post_types` | filter | `( string[] $types )`. Post types sessions do not record. Default `revision`, `customize_changeset`, `oembed_cache`, `user_request` |
@@ -169,7 +169,7 @@ While an agent call runs, every post it changes is recorded against the call:
 | `agent_governance_undo_url` | filter | `( string $url )`. Where to undo changes a rollback cannot. Default Activity Log with Undo's screen when it is active |
 | `agent_governance_call_logged` | action | `( array $row )`. An agent call was written to the log |
 | `agent_governance_call_denied` | action | `( array $call, array $identity, array $decision )`. A call was refused by a rule, the pause or the rate limit |
-| `agent_governance_call_refused` | action | `( array $call, array $identity, WP_Error $error )`. Another plugin refused an agent call before it ran, such as Site Read-Only Mode during a freeze |
+| `agent_governance_call_refused` | action | `( array $call, array $identity, WP_Error $error )`. Another plugin refused an agent call before it ran, such as Axle Read-Only Mode during a freeze |
 | `agent_governance_request_held` | action | `( array $request, array $call, array $decision )`. A call was held for approval |
 | `agent_governance_request_approved` | action | `( array $request, int $approver_id )`. Before an approved call runs |
 | `agent_governance_request_rejected` | action | `( array $request, int $approver_id, string $reason )`. A held call was rejected |
