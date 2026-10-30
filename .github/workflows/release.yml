@@ -9,12 +9,20 @@ name: Release
 # starts releasing once the repository is made public.
 #
 # Deploying to WordPress.org as well needs the repository variable
-# WPORG_DEPLOY=true and the secrets SVN_USERNAME and SVN_PASSWORD.
+# WPORG_DEPLOY=true and the secrets SVN_USERNAME and SVN_PASSWORD. Every new
+# release then deploys by itself. To deploy a version that is already
+# released (the first upload after WordPress.org approves the plugin, or a
+# deploy that failed), run this workflow by hand with "deploy" ticked.
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy the current version to WordPress.org, even if it is already released
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -104,10 +112,13 @@ jobs:
   wordpress-org:
     name: Deploy to WordPress.org
     needs: release
-    if: needs.release.outputs.released == 'true' && vars.WPORG_DEPLOY == 'true'
+    if: vars.WPORG_DEPLOY == 'true' && (needs.release.outputs.released == 'true' || inputs.deploy)
     runs-on: ubuntu-latest
     steps:
+      # The released tag, not main: main may already carry unreleased work.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: v${{ needs.release.outputs.version }}
 
       - uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2 # 2.3.0
         env:
