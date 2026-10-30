@@ -21,3 +21,9 @@ bin/release.sh notes   # the changelog lines it would add
 ## WordPress.org
 
 The Release workflow can also deploy to the WordPress.org plugin directory. It is off until the repository variable `WPORG_DEPLOY` is set to `true` and the secrets `SVN_USERNAME` and `SVN_PASSWORD` hold the WordPress.org account. The deploy takes the screenshots and banners from `.wordpress-org/`.
+
+After that, every new release deploys by itself. To deploy a version that is already released, such as the first upload after WordPress.org approves the plugin or a deploy that failed, run the workflow by hand with **deploy** ticked:
+
+```sh
+gh workflow run release.yml -f deploy=true
+```
