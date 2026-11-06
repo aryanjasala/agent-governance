@@ -1,0 +1,296 @@
+/**
+ * Axle UI: the parts every Axle plugin screen shares.
+ *
+ * Generated from _dev/repo-template by apply-template.py. Do not edit it in a
+ * plugin; change the template and re-apply. See _dev/DESIGN.md.
+ *
+ * Every rule is scoped to .axle-ui, and the file is only loaded on the
+ * plugin's own screens. Classes never change meaning between versions, so two
+ * Axle plugins loading different copies on one screen still look the same.
+ */
+
+.axle-ui {
+	--axle-accent: var(--wp-admin-theme-color, #2271b1);
+	--axle-border: #c3c4c7;
+	--axle-muted: #646970;
+	--axle-surface: #fff;
+	--axle-space: 8px;
+
+	--axle-good-text: #007017;
+	--axle-good-line: #00a32a;
+	--axle-good-bg: #edfaef;
+	--axle-warning-text: #614200;
+	--axle-warning-line: #dba617;
+	--axle-warning-bg: #fcf9e8;
+	--axle-error-text: #8a2424;
+	--axle-error-line: #d63638;
+	--axle-error-bg: #fcf0f1;
+	--axle-info-text: #0a4b78;
+	--axle-info-line: #72aee6;
+	--axle-info-bg: #f0f6fc;
+	--axle-neutral-text: #50575e;
+	--axle-neutral-line: #c3c4c7;
+	--axle-neutral-bg: #f6f7f7;
+}
+
+/* Header and intro */
+
+.axle-ui .axle-status {
+	margin-left: var(--axle-space);
+	vertical-align: middle;
+}
+
+.axle-ui .axle-intro {
+	max-width: 48em;
+	margin: calc(var(--axle-space) * 2) 0;
+	font-size: 14px;
+}
+
+/* Cards */
+
+.axle-ui .axle-card {
+	box-sizing: border-box;
+	margin: 0 0 calc(var(--axle-space) * 2);
+	padding: calc(var(--axle-space) * 2);
+	background: var(--axle-surface);
+	border: 1px solid var(--axle-border);
+	border-radius: 2px;
+}
+
+.axle-ui .axle-card > :first-child {
+	margin-top: 0;
+}
+
+.axle-ui .axle-card > :last-child {
+	margin-bottom: 0;
+}
+
+.axle-ui .axle-card__title {
+	margin: 0 0 var(--axle-space);
+	font-size: 1.3em;
+}
+
+.axle-ui .axle-card__head {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--axle-space);
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: var(--axle-space);
+}
+
+.axle-ui .axle-card__head .axle-card__title {
+	margin: 0;
+}
+
+.axle-ui .axle-card--danger {
+	border-color: var(--axle-error-line);
+}
+
+.axle-ui .axle-card--danger .axle-card__title {
+	color: var(--axle-error-text);
+}
+
+.axle-ui .axle-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+	gap: calc(var(--axle-space) * 2);
+}
+
+.axle-ui .axle-grid > .axle-card {
+	margin: 0;
+}
+
+/* Stats */
+
+.axle-ui .axle-stats {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+	gap: calc(var(--axle-space) * 2);
+	margin: 0 0 calc(var(--axle-space) * 2);
+}
+
+.axle-ui .axle-stat {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: calc(var(--axle-space) * 1.5) calc(var(--axle-space) * 2);
+	background: var(--axle-surface);
+	border: 1px solid var(--axle-border);
+	border-left-width: 4px;
+	border-radius: 2px;
+}
+
+.axle-ui .axle-stat__value {
+	font-size: 24px;
+	font-weight: 600;
+	line-height: 1.2;
+}
+
+.axle-ui .axle-stat__label {
+	color: var(--axle-muted);
+}
+
+/* Badges */
+
+.axle-ui .axle-badge {
+	display: inline-block;
+	padding: 2px 8px;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 1.5;
+	white-space: nowrap;
+	border: 1px solid;
+	border-radius: 2px;
+}
+
+/* Tones: badge, stat and anything else that takes one. */
+
+.axle-ui .axle-badge,
+.axle-ui .axle-badge--neutral {
+	color: var(--axle-neutral-text);
+	background: var(--axle-neutral-bg);
+	border-color: var(--axle-neutral-line);
+}
+
+.axle-ui .axle-badge--good {
+	color: var(--axle-good-text);
+	background: var(--axle-good-bg);
+	border-color: var(--axle-good-line);
+}
+
+.axle-ui .axle-badge--warning {
+	color: var(--axle-warning-text);
+	background: var(--axle-warning-bg);
+	border-color: var(--axle-warning-line);
+}
+
+.axle-ui .axle-badge--error {
+	color: var(--axle-error-text);
+	background: var(--axle-error-bg);
+	border-color: var(--axle-error-line);
+}
+
+.axle-ui .axle-badge--info {
+	color: var(--axle-info-text);
+	background: var(--axle-info-bg);
+	border-color: var(--axle-info-line);
+}
+
+.axle-ui .axle-stat--good {
+	border-left-color: var(--axle-good-line);
+}
+
+.axle-ui .axle-stat--warning {
+	border-left-color: var(--axle-warning-line);
+}
+
+.axle-ui .axle-stat--error {
+	border-left-color: var(--axle-error-line);
+}
+
+.axle-ui .axle-stat--info {
+	border-left-color: var(--axle-info-line);
+}
+
+/* Facts */
+
+.axle-ui .axle-facts {
+	display: grid;
+	grid-template-columns: minmax(8em, max-content) 1fr;
+	gap: var(--axle-space) calc(var(--axle-space) * 2);
+	margin: 0;
+}
+
+.axle-ui .axle-facts dt {
+	color: var(--axle-muted);
+}
+
+.axle-ui .axle-facts dd {
+	margin: 0;
+}
+
+/* Empty state */
+
+.axle-ui .axle-empty {
+	padding: calc(var(--axle-space) * 3) calc(var(--axle-space) * 2);
+	color: var(--axle-muted);
+	text-align: center;
+	background: var(--axle-neutral-bg);
+	border: 1px dashed var(--axle-border);
+	border-radius: 2px;
+}
+
+.axle-ui .axle-empty p {
+	max-width: 36em;
+	margin: 0 auto var(--axle-space);
+}
+
+.axle-ui .axle-empty > :last-child {
+	margin-bottom: 0;
+}
+
+/* Buttons and code */
+
+.axle-ui .button.axle-button--danger {
+	color: var(--axle-error-line);
+	border-color: var(--axle-error-line);
+}
+
+.axle-ui .button.axle-button--danger:hover,
+.axle-ui .button.axle-button--danger:focus {
+	color: var(--axle-error-text);
+	background: var(--axle-error-bg);
+	border-color: var(--axle-error-text);
+}
+
+.axle-ui .button.axle-button--danger:focus {
+	box-shadow: 0 0 0 1px var(--axle-error-text);
+}
+
+.axle-ui .axle-code {
+	display: inline-block;
+	padding: 4px 8px;
+	font-size: 12px;
+	background: var(--axle-neutral-bg);
+	border: 1px solid var(--axle-border);
+	border-radius: 2px;
+	word-break: break-all;
+}
+
+.axle-ui .axle-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--axle-space);
+	align-items: center;
+	margin-top: calc(var(--axle-space) * 2);
+}
+
+.axle-ui .axle-muted {
+	color: var(--axle-muted);
+}
+
+/* Footer */
+
+.axle-ui .axle-footer {
+	margin-top: calc(var(--axle-space) * 4);
+	color: var(--axle-muted);
+	font-size: 12px;
+}
+
+@media screen and (min-width: 960px) {
+	.axle-ui .axle-card {
+		padding: calc(var(--axle-space) * 3);
+	}
+}
+
+@media screen and (max-width: 782px) {
+	.axle-ui .axle-facts {
+		grid-template-columns: 1fr;
+		gap: 2px;
+	}
+
+	.axle-ui .axle-facts dd {
+		margin-bottom: var(--axle-space);
+	}
+}
