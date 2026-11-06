@@ -411,7 +411,8 @@ test.describe( 'Agent Governance', () => {
 
 		for ( const tab of [ 'activity', 'sessions', 'requests' ] ) {
 			await page.goto( `${ SCREEN }&tab=${ tab }` );
-			const table = await page.locator( '.agg-table' ).boundingBox();
+			// The approval queue is empty here, so it shows an empty state instead of a table.
+			const table = await page.locator( '.agg-table, .agg-empty' ).first().boundingBox();
 			expect( table.x + table.width, tab ).toBeLessThanOrEqual( 375 );
 		}
 		await bot.context.dispose();
