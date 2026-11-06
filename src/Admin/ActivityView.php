@@ -100,15 +100,16 @@ final class ActivityView {
 			'duration' => __( 'Time', 'agent-governance' ),
 		);
 
+		if ( ! $found['rows'] ) {
+			echo '<div class="axle-empty agg-empty"><p>' . esc_html__( 'No agent calls yet. Every call an agent makes through an ability or the REST API is logged here.', 'agent-governance' ) . '</p></div>';
+			return;
+		}
+
 		echo '<table class="widefat striped agg-table agg-stack agg-activity"><thead><tr>';
 		foreach ( $columns as $heading ) {
 			echo '<th scope="col">' . esc_html( $heading ) . '</th>';
 		}
 		echo '</tr></thead><tbody>';
-
-		if ( ! $found['rows'] ) {
-			echo '<tr><td colspan="8" class="agg-empty">' . esc_html__( 'No agent calls yet.', 'agent-governance' ) . '</td></tr>';
-		}
 
 		foreach ( $found['rows'] as $row ) {
 			$outcome = Display::badge( (string) $row['decision'] );

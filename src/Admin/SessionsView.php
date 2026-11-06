@@ -55,7 +55,7 @@ final class SessionsView {
 		}
 
 		/* translators: %s: time span, such as "30 mins". */
-		echo '<p class="description agg-intro">' . esc_html( sprintf( __( 'A session is one agent\'s calls with no gap longer than %s, or one MCP session. Review a session to see what it changed and roll back its post edits.', 'agent-governance' ), human_time_diff( 0, Log::session_gap() ) ) ) . '</p>';
+		echo '<p class="axle-intro agg-intro">' . esc_html( sprintf( __( 'A session is one agent\'s calls with no gap longer than %s, or one MCP session. Review a session to see what it changed and roll back its post edits.', 'agent-governance' ), human_time_diff( 0, Log::session_gap() ) ) ) . '</p>';
 
 		$sessions = $this->log->sessions( array( 'limit' => Page::per_page() ) );
 
@@ -68,6 +68,11 @@ final class SessionsView {
 			'rolled_back' => __( 'Rolled back', 'agent-governance' ),
 		);
 
+		if ( ! $sessions ) {
+			echo '<div class="axle-empty agg-empty"><p>' . esc_html__( 'No agent sessions yet. A session appears here once an agent has made a call.', 'agent-governance' ) . '</p></div>';
+			return;
+		}
+
 		echo '<table class="widefat striped agg-table agg-stack agg-sessions"><thead><tr>';
 		foreach ( $columns as $heading ) {
 			echo '<th scope="col">' . esc_html( $heading ) . '</th>';
@@ -75,10 +80,6 @@ final class SessionsView {
 		// The last column only holds the Review button, so its heading is for screen readers.
 		echo '<th scope="col"><span class="screen-reader-text">' . esc_html__( 'Actions', 'agent-governance' ) . '</span></th>';
 		echo '</tr></thead><tbody>';
-
-		if ( ! $sessions ) {
-			echo '<tr><td colspan="7" class="agg-empty">' . esc_html__( 'No agent sessions yet.', 'agent-governance' ) . '</td></tr>';
-		}
 
 		foreach ( $sessions as $row ) {
 			printf(
@@ -118,7 +119,7 @@ final class SessionsView {
 
 		$first = $rows[0];
 		printf(
-			'<h2>%1$s</h2><p class="description">%2$s</p>',
+			'<h2 class="agg-session-title">%1$s</h2><p class="axle-muted">%2$s</p>',
 			esc_html( sprintf( /* translators: %s: agent name. */ __( 'Session of %s', 'agent-governance' ), Log::identity_label( $first ) ) ),
 			esc_html( sprintf( /* translators: %d: number of calls. */ _n( '%d call in this session.', '%d calls in this session.', count( $rows ), 'agent-governance' ), count( $rows ) ) )
 		);
@@ -126,7 +127,7 @@ final class SessionsView {
 		$plan = $this->rollback->plan( $rows );
 
 		echo '<div class="agg-columns"><div class="agg-main">';
-		echo '<div class="agg-card agg-plan"><h3>' . esc_html__( 'Roll back', 'agent-governance' ) . '</h3>';
+		echo '<div class="axle-card axle-card--danger agg-card agg-plan"><h3 class="axle-card__title">' . esc_html__( 'Roll back', 'agent-governance' ) . '</h3>';
 
 		if ( ! $plan['posts'] && ! $plan['other'] ) {
 			echo '<p>' . esc_html__( 'Nothing to roll back: this session only read, or was rolled back already.', 'agent-governance' ) . '</p>';
@@ -166,17 +167,17 @@ final class SessionsView {
 		);
 		if ( $possible ) {
 			printf(
-				'<form method="post" action="%1$s"><input type="hidden" name="action" value="agent_governance_rollback"><input type="hidden" name="session" value="%2$s">%3$s<p><button type="submit" class="button button-primary agg-rollback" data-agg-confirm="%4$s" data-agg-action="rollback">%5$s</button></p></form>',
+				'<form method="post" action="%1$s"><input type="hidden" name="action" value="agent_governance_rollback"><input type="hidden" name="session" value="%2$s">%3$s<p><button type="submit" class="button axle-button--danger agg-rollback" data-agg-confirm="%4$s" data-agg-action="rollback">%5$s</button></p></form>',
 				esc_url( admin_url( 'admin-post.php' ) ),
 				esc_attr( $session ),
 				wp_nonce_field( 'agent_governance_rollback_' . $session, '_wpnonce', true, false ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core's nonce field.
-				esc_attr__( 'Roll back this session? The posts listed are restored or moved to the trash.', 'agent-governance' ),
+				esc_attr__( 'Roll back this session? The posts listed are restored or moved to the trash. Posts in the trash can be restored from there.', 'agent-governance' ),
 				esc_html__( 'Roll back session', 'agent-governance' )
 			);
 		}
 		echo '</div></div><div class="agg-side">';
 
-		echo '<div class="agg-card"><h3>' . esc_html__( 'Calls', 'agent-governance' ) . '</h3><ol class="agg-calls">';
+		echo '<div class="axle-card agg-card"><h3 class="axle-card__title">' . esc_html__( 'Calls', 'agent-governance' ) . '</h3><ol class="agg-calls">';
 		foreach ( $rows as $row ) {
 			printf( '<li>%1$s %2$s <span class="agg-sub">%3$s</span></li>', Display::badge( (string) $row['decision'] ), Display::call( $row ), Display::time( (string) $row['created'] ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 		}

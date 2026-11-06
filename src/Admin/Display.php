@@ -43,7 +43,28 @@ final class Display {
 	 * @return string Escaped HTML.
 	 */
 	public static function badge( string $value ): string {
-		return sprintf( '<span class="agg-badge agg-badge--%1$s">%2$s</span>', esc_attr( sanitize_html_class( $value ) ), esc_html( self::outcome( $value ) ) );
+		return sprintf( '<span class="axle-badge axle-badge--%3$s agg-badge agg-badge--%1$s">%2$s</span>', esc_attr( sanitize_html_class( $value ) ), esc_html( self::outcome( $value ) ), esc_attr( self::tone( $value ) ) );
+	}
+
+	/**
+	 * The Axle tone of an outcome or status.
+	 *
+	 * @param string $value Outcome or status.
+	 * @return string good, warning, error, info or neutral.
+	 */
+	public static function tone( string $value ): string {
+		$tones = array(
+			'allowed'  => 'good',
+			'executed' => 'good',
+			'approved' => 'good',
+			'held'     => 'warning',
+			'pending'  => 'info',
+			'denied'   => 'error',
+			'failed'   => 'error',
+			'refused'  => 'error',
+		);
+
+		return $tones[ $value ] ?? 'neutral';
 	}
 
 	/**
@@ -182,7 +203,7 @@ final class Display {
 	public static function call( array $row ): string {
 		$method = (string) $row['method'];
 
-		return ( '' !== $method && 'rest' === $row['source'] ? '<span class="agg-method">' . esc_html( $method ) . '</span> ' : '' ) . '<code dir="ltr">' . esc_html( (string) $row['target'] ) . '</code>';
+		return ( '' !== $method && 'rest' === $row['source'] ? '<span class="axle-badge axle-badge--neutral agg-method">' . esc_html( $method ) . '</span> ' : '' ) . '<code dir="ltr">' . esc_html( (string) $row['target'] ) . '</code>';
 	}
 
 	/**

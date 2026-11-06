@@ -190,7 +190,8 @@ final class Page implements Service {
 	 * Styles and the small script for confirmations and the rules table.
 	 */
 	public function enqueue(): void {
-		wp_enqueue_style( 'agent-governance-admin', plugins_url( 'assets/admin.css', PLUGIN_FILE ), array(), VERSION );
+		AxleUi::enqueue();
+		wp_enqueue_style( 'agent-governance-admin', plugins_url( 'assets/admin.css', PLUGIN_FILE ), array( AxleUi::HANDLE ), VERSION );
 		wp_enqueue_script( 'agent-governance-admin', plugins_url( 'assets/admin.js', PLUGIN_FILE ), array( 'wp-hooks' ), VERSION, true );
 	}
 
@@ -228,10 +229,11 @@ final class Page implements Service {
 			$tabs['policies'] = __( 'Policies', 'agent-governance' );
 		}
 
-		echo '<div class="wrap agg-wrap">';
+		echo '<div class="wrap axle-ui agg-wrap">';
 		echo '<h1 class="wp-heading-inline">' . esc_html__( 'Agent Governance', 'agent-governance' ) . '</h1>';
-		$this->render_pause();
+		$this->render_pause( false );
 		echo '<hr class="wp-header-end">';
+		$this->render_pause( true );
 		$this->render_message();
 
 		echo '<nav class="nav-tab-wrapper agg-tabs">';
@@ -239,6 +241,15 @@ final class Page implements Service {
 			printf( '<a href="%1$s" class="nav-tab%2$s"%3$s>%4$s</a>', esc_url( self::url( $key ) ), $key === $tab ? ' nav-tab-active' : '', $key === $tab ? ' aria-current="page"' : '', esc_html( $label ) );
 		}
 		echo '</nav>';
+
+		$intros = array(
+			'requests' => __( 'Agent calls that wait for a person. Approving runs the call as the agent\'s user; rejecting tells the agent why.', 'agent-governance' ),
+			'activity' => __( 'Every call an agent made, and what your rules did with it.', 'agent-governance' ),
+			'policies' => __( 'Rules decide which agent calls run, wait for approval or are refused.', 'agent-governance' ),
+		);
+		if ( isset( $intros[ $tab ] ) ) {
+			echo '<p class="axle-intro">' . esc_html( $intros[ $tab ] ) . '</p>';
+		}
 
 		switch ( $tab ) {
 			case 'activity':
@@ -256,26 +267,37 @@ final class Page implements Service {
 				( new RequestsView( $this->requests ) )->render();
 		}
 
+		AxleUi::footer();
 		echo '</div>';
 	}
 
 	/**
-	 * The pause banner or button.
+	 * The pause button beside the heading, or the banner under it once paused.
+	 *
+	 * @param bool $banner False for the part before the header rule, true for the part after it.
 	 */
-	private function render_pause(): void {
+	private function render_pause( bool $banner ): void {
 		$can     = current_user_can( self::settings_capability() );
 		$paused  = $this->settings->is_paused();
-		$confirm = $paused ? '' : __( 'Pause every agent write on this site? Agents can still read.', 'agent-governance' );
+		$confirm = $paused ? '' : __( 'Pause every agent write on this site? Agents can still read. Resume agent writes to undo it.', 'agent-governance' );
+
+		if ( $banner !== $paused ) {
+			if ( ! $banner && $paused ) {
+				echo '<span class="axle-status"><span class="axle-badge axle-badge--warning">' . esc_html__( 'Paused', 'agent-governance' ) . '</span></span>';
+			}
+			return;
+		}
 
 		if ( $paused ) {
 			$by = get_userdata( (int) $this->settings->get( 'paused_by' ) );
-			echo '<div class="agg-paused" role="status"><strong>' . esc_html__( 'Agent writes are paused.', 'agent-governance' ) . '</strong> ';
+			echo '<div class="notice notice-warning inline agg-paused" role="status"><p><strong>' . esc_html__( 'Agent writes are paused.', 'agent-governance' ) . '</strong> ';
 			echo esc_html(
 				$by
 					/* translators: 1: user name, 2: time span. */
 					? sprintf( __( 'Paused by %1$s %2$s ago. Agents can still read; every write is refused.', 'agent-governance' ), $by->display_name, human_time_diff( (int) $this->settings->get( 'paused_at' ), time() ) )
 					: __( 'Agents can still read; every write is refused.', 'agent-governance' )
 			);
+			echo '</p>';
 		}
 
 		if ( $can ) {
@@ -284,7 +306,7 @@ final class Page implements Service {
 				esc_url( admin_url( 'admin-post.php' ) ),
 				esc_attr( $paused ? 'resume' : 'pause' ),
 				wp_nonce_field( 'agent_governance_pause', '_wpnonce', true, false ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core's nonce field.
-				esc_attr( $paused ? 'button button-primary' : 'page-title-action agg-pause-button' ),
+				esc_attr( $paused ? 'button' : 'page-title-action agg-pause-button' ),
 				esc_attr( $confirm ),
 				esc_html( $paused ? __( 'Resume agent writes', 'agent-governance' ) : __( 'Pause agent writes', 'agent-governance' ) )
 			);

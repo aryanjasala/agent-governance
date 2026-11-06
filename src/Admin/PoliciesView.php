@@ -54,7 +54,7 @@ final class PoliciesView {
 		echo '<input type="hidden" name="action" value="agent_governance_policies">';
 		wp_nonce_field( 'agent_governance_policies' );
 
-		echo '<h2>' . esc_html__( 'Rules', 'agent-governance' ) . '</h2>';
+		echo '<section class="axle-card"><h2 class="axle-card__title">' . esc_html__( 'Rules', 'agent-governance' ) . '</h2>';
 		echo '<p class="description">' . esc_html__( 'The first matching rule wins, checking rules for the agent first, then its user, then its role, then every agent. Patterns match ability names or REST routes: * matches anything. Start a pattern with a method to match only REST calls with it, such as "DELETE /wp/v2/*".', 'agent-governance' ) . '</p>';
 
 		echo '<table class="widefat agg-stack agg-rules"><thead><tr><th scope="col">' . esc_html__( 'Applies to', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Which one', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Ability or route', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Then', 'agent-governance' ) . '</th><th scope="col"><span class="screen-reader-text">' . esc_html__( 'Remove', 'agent-governance' ) . '</span></th></tr></thead><tbody>';
@@ -76,7 +76,7 @@ final class PoliciesView {
 			echo '</tbody></table></details>';
 		}
 
-		echo '<h2>' . esc_html__( 'When no rule matches', 'agent-governance' ) . '</h2><table class="form-table" role="presentation"><tbody>';
+		echo '</section><section class="axle-card"><h2 class="axle-card__title">' . esc_html__( 'When no rule matches', 'agent-governance' ) . '</h2><table class="form-table" role="presentation"><tbody>';
 		$kinds = array(
 			'readonly'    => __( 'Read-only calls', 'agent-governance' ),
 			'write'       => __( 'Writes', 'agent-governance' ),
@@ -94,9 +94,9 @@ final class PoliciesView {
 			}
 			printf( '</select><p class="description">%s</p></td></tr>', esc_html( $hints[ $kind ] ) );
 		}
-		echo '</tbody></table>';
+		echo '</tbody></table></section>';
 
-		echo '<h2>' . esc_html__( 'Limits and notifications', 'agent-governance' ) . '</h2><table class="form-table" role="presentation"><tbody>';
+		echo '<section class="axle-card"><h2 class="axle-card__title">' . esc_html__( 'Limits and notifications', 'agent-governance' ) . '</h2><table class="form-table" role="presentation"><tbody>';
 		printf(
 			'<tr><th scope="row"><label for="agg-rate">%1$s</label></th><td><input type="number" min="0" max="100000" id="agg-rate" name="rate_limit" value="%2$d" class="small-text"> %3$s<p class="description">%4$s</p></td></tr>',
 			esc_html__( 'Rate limit', 'agent-governance' ),
@@ -118,7 +118,7 @@ final class PoliciesView {
 			(int) $settings['retention_days'],
 			esc_html__( 'days', 'agent-governance' )
 		);
-		echo '</tbody></table>';
+		echo '</tbody></table></section>';
 
 		submit_button( __( 'Save policies', 'agent-governance' ) );
 		echo '</form>';
