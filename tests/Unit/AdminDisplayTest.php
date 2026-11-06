@@ -131,8 +131,34 @@ final class AdminDisplayTest extends AgentTestCase {
 		$this->assertStringContainsString( '<option value="refused">', $html, 'Refused calls can be filtered.' );
 	}
 
-	public function test_every_sessions_column_has_a_heading(): void {
+	public function test_no_sessions_shows_an_empty_state(): void {
 		$this->wpdb->returns['get_results'] = array( array() );
+		Functions\when( 'human_time_diff' )->justReturn( '30 mins' );
+
+		ob_start();
+		( new SessionsView( $this->log, $this->rollback ) )->render();
+		$html = (string) ob_get_clean();
+
+		$this->assertStringContainsString( 'axle-empty', $html );
+		$this->assertStringNotContainsString( '<table', $html );
+	}
+
+	public function test_every_sessions_column_has_a_heading(): void {
+		$this->wpdb->returns['get_results'] = array(
+			array(
+				array(
+					'session'     => 's1',
+					'identity'    => 'app:one',
+					'agent'       => 'Claude',
+					'user_id'     => 0,
+					'first'       => '2026-11-06 10:00:00',
+					'last'        => '2026-11-06 10:05:00',
+					'calls'       => 3,
+					'writes'      => 1,
+					'rolled_back' => null,
+				),
+			),
+		);
 		Functions\when( 'human_time_diff' )->justReturn( '30 mins' );
 
 		ob_start();

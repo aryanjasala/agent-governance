@@ -1,4 +1,4 @@
-/* Tools > Agent Governance. */
+/* Tools > Agent Governance. Layout only: components, tones and colours come from axle-ui.css. */
 
 .agg-wrap .agg-pause-form {
 	display: inline;
@@ -13,10 +13,6 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: 8px 12px;
-	margin: 12px 0 4px;
-	padding: 10px 14px;
-	border-left: 4px solid #d63638;
-	background: #fcf0f1;
 }
 
 .agg-paused .agg-pause-form {
@@ -32,63 +28,9 @@
 	vertical-align: top;
 }
 
-.agg-table .agg-empty {
-	padding: 24px 12px;
-	color: #646970;
-	text-align: center;
-}
-
 .agg-sub {
-	color: #646970;
+	color: var(--axle-muted);
 	font-size: 12px;
-}
-
-.agg-method {
-	display: inline-block;
-	padding: 0 5px;
-	border-radius: 3px;
-	background: #f0f0f1;
-	font-family: Consolas, Monaco, monospace;
-	font-size: 11px;
-	font-weight: 600;
-	line-height: 18px;
-}
-
-.agg-badge {
-	display: inline-block;
-	padding: 1px 8px;
-	border-radius: 10px;
-	background: #f0f0f1;
-	color: #1d2327;
-	font-size: 12px;
-	font-weight: 500;
-	line-height: 18px;
-	white-space: nowrap;
-}
-
-.agg-badge--allowed,
-.agg-badge--executed {
-	background: #edfaef;
-	color: #005c12;
-}
-
-.agg-badge--held,
-.agg-badge--pending,
-.agg-badge--approved {
-	background: #fcf9e8;
-	color: #6e4e00;
-}
-
-.agg-badge--denied,
-.agg-badge--failed {
-	background: #fcf0f1;
-	color: #8a2424;
-}
-
-.agg-badge--rejected,
-.agg-badge--expired {
-	background: #f0f0f1;
-	color: #50575e;
 }
 
 .agg-status-filter {
@@ -115,19 +57,6 @@
 	}
 }
 
-.agg-card {
-	margin-bottom: 16px;
-	padding: 4px 16px 12px;
-	border: 1px solid #dcdcde;
-	border-radius: 4px;
-	background: #fff;
-}
-
-.agg-card h3 {
-	margin: 12px 0 8px;
-	font-size: 14px;
-}
-
 .agg-request-title {
 	display: flex;
 	align-items: center;
@@ -140,7 +69,7 @@
 }
 
 .agg-summary--none {
-	color: #646970;
+	color: var(--axle-muted);
 	font-weight: 400;
 }
 
@@ -149,14 +78,14 @@
 }
 
 .agg-diff del {
-	background: #fcf0f1;
-	color: #8a2424;
+	background: var(--axle-error-bg);
+	color: var(--axle-error-text);
 	text-decoration: line-through;
 }
 
 .agg-diff ins {
-	background: #edfaef;
-	color: #005c12;
+	background: var(--axle-good-bg);
+	color: var(--axle-good-text);
 	text-decoration: none;
 }
 
@@ -189,40 +118,21 @@
 	margin: 8px 0;
 	padding: 10px 12px;
 	border-radius: 3px;
-	background: #f6f7f7;
+	background: var(--axle-neutral-bg);
 	font-size: 12px;
 	line-height: 1.5;
 	white-space: pre-wrap;
 	word-break: break-word;
 }
 
-.agg-facts {
-	width: 100%;
-	border-collapse: collapse;
-}
-
-.agg-facts th,
-.agg-facts td {
-	padding: 6px 0;
-	border-bottom: 1px solid #f0f0f1;
-	text-align: start;
-	vertical-align: top;
-}
-
-.agg-facts th {
-	width: 38%;
-	color: #50575e;
-	font-weight: 500;
-}
-
 .agg-decide .agg-reject {
 	margin-top: 8px;
 	padding-top: 8px;
-	border-top: 1px solid #f0f0f1;
+	border-top: 1px solid var(--axle-border);
 }
 
 .agg-plan-skip td {
-	color: #646970;
+	color: var(--axle-muted);
 }
 
 .agg-other li,
@@ -254,10 +164,6 @@
 	cursor: pointer;
 }
 
-.agg-intro {
-	margin-bottom: 12px;
-}
-
 /* Small screens: each row becomes a card, each cell labelled, as core's list tables do. */
 @media screen and (max-width: 782px) {
 	.agg-stack,
@@ -280,7 +186,7 @@
 
 	.agg-stack tr {
 		padding: 8px 0;
-		border-bottom: 1px solid #dcdcde;
+		border-bottom: 1px solid var(--axle-border);
 	}
 
 	.agg-stack td {
@@ -291,7 +197,7 @@
 		content: attr(data-colname);
 		display: block;
 		margin-bottom: 2px;
-		color: #50575e;
+		color: var(--axle-neutral-text);
 		font-size: 12px;
 		font-weight: 600;
 	}
@@ -307,4 +213,14 @@
 		flex: 1 1 100%;
 		max-width: none;
 	}
+}
+
+.agg-side .axle-facts {
+	grid-template-columns: minmax(6em, max-content) 1fr;
+	gap: 6px 16px;
+}
+
+/* The shared danger button text (#d63638) is 4.4:1 on core's grey button, under the 4.5:1 AA bar. Use the darker error text until axle-ui.css does. */
+.agg-wrap .button.axle-button--danger {
+	color: var(--axle-error-text);
 }
