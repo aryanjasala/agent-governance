@@ -93,15 +93,16 @@ final class RequestsView {
 			'status'  => __( 'Status', 'agent-governance' ),
 		);
 
+		if ( ! $found['rows'] ) {
+			echo '<div class="axle-empty agg-empty"><p>' . esc_html( Requests::PENDING === $status ? __( 'No agent calls are waiting for approval. When a rule holds a call, it shows up here.', 'agent-governance' ) : __( 'No requests here.', 'agent-governance' ) ) . '</p></div>';
+			return;
+		}
+
 		echo '<table class="widefat striped agg-table agg-stack agg-requests"><thead><tr>';
 		foreach ( $columns as $heading ) {
 			echo '<th scope="col">' . esc_html( $heading ) . '</th>';
 		}
 		echo '</tr></thead><tbody>';
-
-		if ( ! $found['rows'] ) {
-			echo '<tr><td colspan="5" class="agg-empty">' . esc_html( Requests::PENDING === $status ? __( 'No agent calls are waiting for approval.', 'agent-governance' ) : __( 'No requests here.', 'agent-governance' ) ) . '</td></tr>';
-		}
 
 		foreach ( $found['rows'] as $row ) {
 			$preview = json_decode( (string) $row['dry_run'], true );
@@ -150,24 +151,24 @@ final class RequestsView {
 		echo '<div class="agg-columns"><div class="agg-main">';
 
 		$pending = Requests::PENDING === $status;
-		echo '<div class="agg-card agg-preview"><h3>' . esc_html( $pending ? __( 'What it would change', 'agent-governance' ) : __( 'What it was asked to change', 'agent-governance' ) ) . '</h3>';
+		echo '<div class="axle-card agg-card agg-preview"><h3 class="axle-card__title">' . esc_html( $pending ? __( 'What it would change', 'agent-governance' ) : __( 'What it was asked to change', 'agent-governance' ) ) . '</h3>';
 		$this->render_preview( is_array( $preview ) ? $preview : array(), $pending );
 		echo '</div>';
 
-		echo '<div class="agg-card"><h3>' . esc_html__( 'Input', 'agent-governance' ) . '</h3>';
+		echo '<div class="axle-card agg-card"><h3 class="axle-card__title">' . esc_html__( 'Input', 'agent-governance' ) . '</h3>';
 		echo '<p class="description">' . esc_html__( 'What the agent sent. Passwords, tokens and keys are hidden here.', 'agent-governance' ) . '</p>';
 		echo Display::json( \AryanX\Axle\AgentGovernance\Redactor::encode( json_decode( (string) $row['input'], true ), 'input' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 		echo '</div>';
 
 		if ( null !== $row['result'] && '' !== (string) $row['result'] ) {
-			echo '<div class="agg-card agg-result"><h3>' . esc_html__( 'Result', 'agent-governance' ) . '</h3>';
+			echo '<div class="axle-card agg-card agg-result"><h3 class="axle-card__title">' . esc_html__( 'Result', 'agent-governance' ) . '</h3>';
 			echo Display::json( (string) $row['result'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 			echo '</div>';
 		}
 
 		echo '</div><div class="agg-side">';
 
-		echo '<div class="agg-card"><table class="agg-facts">';
+		echo '<div class="axle-card agg-card"><dl class="axle-facts agg-facts">';
 		$facts = array(
 			__( 'Agent', 'agent-governance' )        => esc_html( Log::identity_label( $row ) ),
 			__( 'Signed in as', 'agent-governance' ) => esc_html( $user ? $user->user_login : '#' . (int) $row['user_id'] ),
@@ -188,9 +189,9 @@ final class RequestsView {
 		}
 		$facts[ __( 'Session', 'agent-governance' ) ] = sprintf( '<a href="%1$s">%2$s</a>', esc_url( Page::url( 'sessions', array( 'session' => (string) $row['session'] ) ) ), esc_html__( 'All calls in this session', 'agent-governance' ) );
 		foreach ( $facts as $label => $value ) {
-			printf( '<tr><th scope="row">%1$s</th><td>%2$s</td></tr>', esc_html( $label ), $value ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Each value is escaped above.
+			printf( '<dt>%1$s</dt><dd>%2$s</dd>', esc_html( $label ), $value ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Each value is escaped above.
 		}
-		echo '</table></div>';
+		echo '</dl></div>';
 
 		if ( Requests::PENDING === $status && current_user_can( Notifier::capability() ) ) {
 			$this->render_decision( $id );
@@ -267,7 +268,7 @@ final class RequestsView {
 		$action = esc_url( admin_url( 'admin-post.php' ) );
 		$nonce  = wp_nonce_field( 'agent_governance_decide_' . $id, '_wpnonce', true, false );
 
-		echo '<div class="agg-card agg-decide"><h3>' . esc_html__( 'Decide', 'agent-governance' ) . '</h3>';
+		echo '<div class="axle-card agg-card agg-decide"><h3 class="axle-card__title">' . esc_html__( 'Decide', 'agent-governance' ) . '</h3>';
 		echo '<p class="description">' . esc_html__( 'Approving runs the call now, as the user the agent signed in as.', 'agent-governance' ) . '</p>';
 
 		printf(
@@ -280,12 +281,12 @@ final class RequestsView {
 		);
 
 		printf(
-			'<form method="post" action="%1$s" class="agg-reject"><input type="hidden" name="action" value="agent_governance_decide"><input type="hidden" name="request" value="%2$d"><input type="hidden" name="decision" value="reject">%3$s<p><label for="agg-reason">%4$s</label><textarea id="agg-reason" name="reason" rows="3" class="large-text"></textarea></p><p><button type="submit" class="button agg-reject-button" data-agg-confirm="%5$s" data-agg-action="reject">%6$s</button></p></form>',
+			'<form method="post" action="%1$s" class="agg-reject"><input type="hidden" name="action" value="agent_governance_decide"><input type="hidden" name="request" value="%2$d"><input type="hidden" name="decision" value="reject">%3$s<p><label for="agg-reason">%4$s</label><textarea id="agg-reason" name="reason" rows="3" class="large-text"></textarea></p><p><button type="submit" class="button axle-button--danger agg-reject-button" data-agg-confirm="%5$s" data-agg-action="reject">%6$s</button></p></form>',
 			$action, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above.
 			(int) $id,
 			$nonce, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core's nonce field.
 			esc_html__( 'Reason, shown to the agent', 'agent-governance' ),
-			esc_attr__( 'Reject this call? The agent sees your reason.', 'agent-governance' ),
+			esc_attr__( 'Reject this call? The agent sees your reason. A rejected call cannot be approved later.', 'agent-governance' ),
 			esc_html__( 'Reject', 'agent-governance' )
 		);
 
