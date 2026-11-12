@@ -324,9 +324,157 @@
 	font-size: 12px;
 }
 
+/* Times: AxleUi::relative_time() prints <time class="axle-time">. */
+
+.axle-ui .axle-time {
+	white-space: nowrap;
+}
+
+/* Toolbar: search, filters and bulk actions above a list. <div class="axle-toolbar">…<span class="axle-toolbar__end">…</span></div> */
+
+.axle-ui .axle-toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--axle-space);
+	align-items: center;
+	margin: 0 0 calc(var(--axle-space) * 2);
+}
+
+.axle-ui .axle-toolbar__end {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--axle-space);
+	align-items: center;
+	margin-left: auto;
+}
+
+/* Steps: the "Get started" list a screen shows until its setup is done. <ol class="axle-steps"><li class="axle-step"><div class="axle-step__body"><strong class="axle-step__title">…</strong><p>…</p></div><a class="button">…</a></li></ol> A finished step gets a good badge saying "Done" instead of the button. */
+
+.axle-ui .axle-steps {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	counter-reset: axle-step;
+}
+
+.axle-ui .axle-step {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--axle-space) calc(var(--axle-space) * 2);
+	align-items: center;
+	margin: 0;
+	padding: calc(var(--axle-space) * 1.5) 0;
+	border-top: 1px solid var(--axle-neutral-bg);
+	counter-increment: axle-step;
+}
+
+.axle-ui .axle-step:first-child {
+	padding-top: 0;
+	border-top: 0;
+}
+
+.axle-ui .axle-step:last-child {
+	padding-bottom: 0;
+}
+
+.axle-ui .axle-step__body {
+	flex: 1 1 16em;
+}
+
+.axle-ui .axle-step__title::before {
+	content: counter(axle-step) ". ";
+}
+
+.axle-ui .axle-step__body p {
+	margin: 2px 0 0;
+	color: var(--axle-muted);
+}
+
+/* Confirm: the step before anything that deletes or overwrites, shown in place. <div class="axle-confirm axle-confirm--danger" role="group" aria-labelledby="…"><p id="…">…what will change, and whether it can be undone…</p><div class="axle-actions">…</div></div> */
+
+.axle-ui .axle-confirm {
+	margin: var(--axle-space) 0;
+	padding: calc(var(--axle-space) * 1.5) calc(var(--axle-space) * 2);
+	color: var(--axle-warning-text);
+	background: var(--axle-warning-bg);
+	border: 1px solid var(--axle-warning-line);
+	border-left-width: 4px;
+	border-radius: 2px;
+}
+
+.axle-ui .axle-confirm--danger {
+	color: var(--axle-error-text);
+	background: var(--axle-error-bg);
+	border-color: var(--axle-error-line);
+}
+
+.axle-ui .axle-confirm > :first-child {
+	margin-top: 0;
+}
+
+.axle-ui .axle-confirm .axle-actions {
+	margin-top: var(--axle-space);
+}
+
+/* Diff: one value before and after. <div class="axle-diff"><del><span class="screen-reader-text">Before:</span> …</del><ins><span class="screen-reader-text">After:</span> …</ins></div> */
+
+.axle-ui .axle-diff {
+	display: grid;
+	gap: 2px;
+}
+
+.axle-ui .axle-diff del,
+.axle-ui .axle-diff ins {
+	display: block;
+	padding: 4px 8px;
+	text-decoration: none;
+	white-space: pre-wrap;
+	word-break: break-word;
+	border-left: 4px solid;
+	border-radius: 2px;
+}
+
+.axle-ui .axle-diff del {
+	color: var(--axle-error-text);
+	background: var(--axle-error-bg);
+	border-color: var(--axle-error-line);
+}
+
+.axle-ui .axle-diff ins {
+	color: var(--axle-good-text);
+	background: var(--axle-good-bg);
+	border-color: var(--axle-good-line);
+}
+
+/* Scroll: a wide table inside a card on a narrow screen. <div class="axle-scroll" tabindex="0" role="region" aria-label="…"><table class="widefat striped">…</table></div> */
+
+.axle-ui .axle-scroll {
+	overflow-x: auto;
+}
+
+.axle-ui .axle-scroll:focus {
+	outline: 2px solid var(--axle-accent);
+	outline-offset: 1px;
+}
+
 @media screen and (min-width: 960px) {
 	.axle-ui .axle-card {
 		padding: calc(var(--axle-space) * 3);
+	}
+}
+
+/* Windows high contrast: backgrounds are dropped, so shapes need a border or a system colour. */
+
+@media (forced-colors: active) {
+	.axle-ui .axle-progress__bar {
+		background: Highlight;
+	}
+
+	.axle-ui .axle-diff del,
+	.axle-ui .axle-diff ins,
+	.axle-ui .axle-confirm {
+		border: 1px solid;
+		border-left-width: 4px;
 	}
 }
 
