@@ -663,7 +663,7 @@ final class DryRun {
 	 * @param \WP_Post_Type|\WP_Taxonomy $type Post type or taxonomy.
 	 * @return string
 	 */
-	private static function rest_path( $type ): string {
+	public static function rest_path( $type ): string {
 		$namespace = ! empty( $type->rest_namespace ) ? (string) $type->rest_namespace : 'wp/v2';
 		$base      = ! empty( $type->rest_base ) ? (string) $type->rest_base : (string) $type->name;
 

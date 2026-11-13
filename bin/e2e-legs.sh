@@ -69,7 +69,7 @@ for leg in "${LEGS[@]}"; do
 	versions="WordPress $(wpcli core version), PHP $(compose exec -T wp php -r 'echo PHP_VERSION;')"
 	echo "    $versions, theme $theme"
 
-	if WP_THEME="$theme" npm run --silent test:e2e -- "$@"; then
+	if WP_THEME="$theme" WP_LEG="$label" npm run --silent test:e2e -- "$@"; then
 		summary+=("pass|$label|$versions")
 	else
 		summary+=("FAIL|$label|$versions")

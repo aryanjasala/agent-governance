@@ -77,18 +77,6 @@
 	width: 22%;
 }
 
-.agg-diff del {
-	background: var(--axle-error-bg);
-	color: var(--axle-error-text);
-	text-decoration: line-through;
-}
-
-.agg-diff ins {
-	background: var(--axle-good-bg);
-	color: var(--axle-good-text);
-	text-decoration: none;
-}
-
 .agg-text-diff table.diff {
 	width: 100%;
 }

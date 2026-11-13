@@ -123,12 +123,20 @@ final class Rollback {
 			'status'      => (string) ( $change['status'] ?? '' ),
 			'fields'      => isset( $change['fields'] ) && is_array( $change['fields'] ) ? $change['fields'] : null,
 			'possible'    => true,
+			'denied'      => false,
 			'note'        => '',
 		);
 
 		if ( ! $post ) {
 			$item['possible'] = false;
 			$item['note']     = __( 'The post no longer exists.', 'agent-governance' );
+		} elseif ( ! self::may( (string) $item['action'], $post_id ) ) {
+			// Whoever rolls back may only touch what they could edit themselves, and may not read titles of the rest.
+			$item['possible'] = false;
+			$item['denied']   = true;
+			/* translators: %d: post ID. */
+			$item['title'] = sprintf( __( 'Post #%d', 'agent-governance' ), $post_id );
+			$item['note']  = __( 'You are not allowed to change this post, so it stays as it is.', 'agent-governance' );
 		} elseif ( 'trash' === $item['action'] ) {
 			$item['note'] = 'trash' === $post->post_status ? __( 'Already in the trash.', 'agent-governance' ) : __( 'Created by the agent. Moves to the trash.', 'agent-governance' );
 			if ( 'trash' === $post->post_status ) {
@@ -156,7 +164,7 @@ final class Rollback {
 	 *
 	 * @param array  $plan  From plan().
 	 * @param string $scope What is rolled back, for the action: a session key or an identity.
-	 * @return array{restored: int, trashed: int, failed: int, skipped: int}
+	 * @return array{restored: int, trashed: int, failed: int, skipped: int, denied: int}
 	 */
 	public function run( array $plan, string $scope ): array {
 		$result = array(
@@ -164,9 +172,16 @@ final class Rollback {
 			'trashed'  => 0,
 			'failed'   => 0,
 			'skipped'  => count( $plan['other'] ),
+			'denied'   => 0,
 		);
 
 		foreach ( $plan['posts'] as $item ) {
+			// The plan may be old: check the person's rights on each post again as it is changed.
+			if ( ! empty( $item['denied'] ) || ( $item['possible'] && ! self::may( (string) $item['action'], (int) $item['post_id'] ) ) ) {
+				++$result['denied'];
+				continue;
+			}
+
 			if ( ! $item['possible'] ) {
 				++$result['skipped'];
 				continue;
@@ -181,18 +196,37 @@ final class Rollback {
 			++$result[ $this->restore( $item ) ? 'restored' : 'failed' ];
 		}
 
-		$this->log->mark_rolled_back( $plan['rows'] );
+		// A session with posts the person may not touch is not done: leave it open for someone who may.
+		if ( ! $result['denied'] ) {
+			$this->log->mark_rolled_back( $plan['rows'] );
+		}
 
 		/**
 		 * Fires after an agent session was rolled back.
 		 *
 		 * @param string $scope  The session key, or the identity for WP-CLI rollbacks by time.
-		 * @param array  $result restored, trashed, failed and skipped counts.
+		 * @param array  $result restored, trashed, failed, skipped and denied counts.
 		 * @param array  $plan   What was planned: posts, other and rows.
 		 */
 		do_action( 'agent_governance_session_rolled_back', $scope, $result, $plan );
 
 		return $result;
+	}
+
+	/**
+	 * Whether the signed-in person may roll this post back. WP-CLI and cron have
+	 * no signed-in person and are trusted, as they are everywhere else.
+	 *
+	 * @param string $action restore or trash.
+	 * @param int    $post_id Post ID.
+	 * @return bool
+	 */
+	private static function may( string $action, int $post_id ): bool {
+		if ( ! get_current_user_id() ) {
+			return true;
+		}
+
+		return current_user_can( 'trash' === $action ? 'delete_post' : 'edit_post', $post_id );
 	}
 
 	/**

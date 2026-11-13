@@ -81,6 +81,33 @@ final class Requests {
 	}
 
 	/**
+	 * Several requests by ID, keyed by ID.
+	 *
+	 * @param int[] $ids Request IDs.
+	 * @return array<int, array>
+	 */
+	public function get_many( array $ids ): array {
+		global $wpdb;
+
+		$ids = array_slice( array_values( array_unique( array_filter( array_map( 'intval', $ids ) ) ) ), 0, 1000 );
+		if ( ! $ids ) {
+			return array();
+		}
+
+		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $placeholders is a list of %d; the plugin's own table.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, created, status, decided_by, decided_at, reason FROM %i WHERE id IN ({$placeholders})", array_merge( array( Schema::requests_table() ), $ids ) ), ARRAY_A );
+		// phpcs:enable
+
+		$found = array();
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			$found[ (int) $row['id'] ] = $row;
+		}
+
+		return $found;
+	}
+
+	/**
 	 * Changes columns of a request.
 	 *
 	 * @param int         $id      Request ID.
@@ -138,6 +165,21 @@ final class Requests {
 			'rows'  => is_array( $rows ) ? $rows : array(),
 			'total' => $total,
 		);
+	}
+
+	/**
+	 * How decided requests came out, per agent and call, for suggesting rules.
+	 *
+	 * @param int $since Unix time to start from.
+	 * @return array[] identity, agent, user_id, kind, source, method, target, status and n (how many).
+	 */
+	public function decisions_since( int $since ): array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The plugin's own table; the result is cached for a few minutes by the caller.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT identity, MAX(agent) AS agent, MAX(user_id) AS user_id, MAX(kind) AS kind, source, method, target, status, COUNT(*) AS n FROM %i WHERE created >= %s AND status IN ('executed','failed','rejected') GROUP BY identity, source, method, target, status ORDER BY n DESC LIMIT 1000", Schema::requests_table(), gmdate( 'Y-m-d H:i:s', $since ) ), ARRAY_A );
+
+		return is_array( $rows ) ? $rows : array();
 	}
 
 	/**

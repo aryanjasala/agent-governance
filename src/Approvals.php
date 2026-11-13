@@ -62,7 +62,7 @@ final class Approvals {
 	 * @return array|\WP_Error The updated request.
 	 */
 	public function approve( int $id, int $approver_id ) {
-		$request = $this->decidable( $id );
+		$request = $this->decidable( $id, $approver_id );
 		if ( is_wp_error( $request ) ) {
 			return $request;
 		}
@@ -131,7 +131,7 @@ final class Approvals {
 	 * @return array|\WP_Error The updated request.
 	 */
 	public function reject( int $id, int $approver_id, string $reason = '' ) {
-		$request = $this->decidable( $id );
+		$request = $this->decidable( $id, $approver_id );
 		if ( is_wp_error( $request ) ) {
 			return $request;
 		}
@@ -213,13 +213,19 @@ final class Approvals {
 	/**
 	 * A request that can still be decided.
 	 *
-	 * @param int $id Request ID.
+	 * @param int $id          Request ID.
+	 * @param int $approver_id Who is deciding.
 	 * @return array|\WP_Error
 	 */
-	private function decidable( int $id ) {
+	private function decidable( int $id, int $approver_id ) {
 		$request = $this->requests->get( $id );
 		if ( ! $request ) {
 			return new \WP_Error( 'agent_governance_not_found', __( 'No request with that ID.', 'agent-governance' ), array( 'status' => 404 ) );
+		}
+
+		// Having the approver capability is not enough: the person has to be able to change what the call touches.
+		if ( ! Review::can( $request, $approver_id ) ) {
+			return new \WP_Error( 'agent_governance_forbidden', __( 'This call touches something you are not allowed to change, so you cannot decide it.', 'agent-governance' ), array( 'status' => 403 ) );
 		}
 
 		if ( Requests::is_overdue( $request ) ) {

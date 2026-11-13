@@ -7,6 +7,8 @@
 
 namespace AryanX\Axle\AgentGovernance;
 
+use AryanX\Axle\AgentGovernance\Admin\Page;
+
 defined( 'ABSPATH' ) || exit;
 
 /**
@@ -42,16 +44,34 @@ final class Abilities implements Service {
 	private Classifier $classifier;
 
 	/**
+	 * Replays the log against a policy.
+	 *
+	 * @var Simulator|null
+	 */
+	private ?Simulator $simulator;
+
+	/**
+	 * Session evidence files.
+	 *
+	 * @var Evidence|null
+	 */
+	private ?Evidence $evidence;
+
+	/**
 	 * Sets up the abilities.
 	 *
 	 * @param Requests   $requests   The approval queue.
 	 * @param Approvals  $approvals  Approvals.
 	 * @param Classifier $classifier Agent detection.
+	 * @param Simulator  $simulator  Replays the log against a policy.
+	 * @param Evidence   $evidence   Session evidence files.
 	 */
-	public function __construct( Requests $requests, Approvals $approvals, Classifier $classifier ) {
+	public function __construct( Requests $requests, Approvals $approvals, Classifier $classifier, ?Simulator $simulator = null, ?Evidence $evidence = null ) {
 		$this->requests   = $requests;
 		$this->approvals  = $approvals;
 		$this->classifier = $classifier;
+		$this->simulator  = $simulator;
+		$this->evidence   = $evidence;
 	}
 
 	/**
@@ -187,6 +207,162 @@ final class Abilities implements Service {
 				'idempotent'  => false,
 			)
 		);
+
+		if ( $this->simulator ) {
+			$this->ability(
+				'simulate-policy',
+				__( 'Try a policy on past calls', 'agent-governance' ),
+				__( 'Replays the audit log (30 days by default) against a draft policy and says, per agent, how many calls would be allowed, held for approval, refused or rate limited, and what changes compared with the policies live today. Nothing is saved and no call is run. Leave out rules, defaults or rate_limit to keep what is live.', 'agent-governance' ),
+				array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'days'         => array(
+							'type'    => 'integer',
+							'minimum' => 1,
+							'maximum' => 365,
+							'default' => 30,
+						),
+						'rules'        => array(
+							'type'        => 'array',
+							'description' => 'The draft rules, replacing the live ones: scope, subject, pattern and action.',
+							'items'       => array(
+								'type'       => 'object',
+								'properties' => array(
+									'scope'   => array(
+										'type' => 'string',
+										'enum' => Settings::SCOPES,
+									),
+									'subject' => array( 'type' => 'string' ),
+									'pattern' => array( 'type' => 'string' ),
+									'action'  => array(
+										'type' => 'string',
+										'enum' => Settings::ACTIONS,
+									),
+								),
+							),
+						),
+						'defaults'     => array(
+							'type'        => 'object',
+							'description' => 'What happens when no rule matches, per kind of call: readonly, write and destructive.',
+						),
+						'rate_limit'   => array(
+							'type'    => 'integer',
+							'minimum' => 0,
+							'maximum' => 100000,
+						),
+						'without_rule' => array(
+							'type'        => 'string',
+							'description' => 'Try the live policy without this rule (its ID).',
+						),
+					),
+					'additionalProperties' => false,
+					'default'              => array(),
+				),
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'days'      => array( 'type' => 'integer' ),
+						'calls'     => array( 'type' => 'integer' ),
+						'truncated' => array( 'type' => 'boolean' ),
+						'partial'   => array( 'type' => 'boolean' ),
+						'baseline'  => array( 'type' => 'object' ),
+						'policy'    => array( 'type' => 'object' ),
+						'changes'   => array( 'type' => 'array' ),
+						'agents'    => array( 'type' => 'array' ),
+					),
+				),
+				array( $this, 'simulate_policy' ),
+				static function (): bool {
+					return current_user_can( Page::settings_capability() );
+				},
+				array(
+					'readonly'   => true,
+					'idempotent' => true,
+				)
+			);
+		}
+
+		if ( $this->evidence ) {
+			$this->ability(
+				'export-session-evidence',
+				__( 'Export a session as signed evidence', 'agent-governance' ),
+				__( 'The calls of one agent session, what was decided for each, who approved and how long it took, as a JSON file signed by this site. Inputs and results are left out.', 'agent-governance' ),
+				array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'session' => array(
+							'type'      => 'string',
+							'minLength' => 1,
+						),
+					),
+					'required'             => array( 'session' ),
+					'additionalProperties' => false,
+				),
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'payload'   => array( 'type' => 'object' ),
+						'algorithm' => array( 'type' => 'string' ),
+						'signature' => array( 'type' => 'string' ),
+					),
+				),
+				array( $this, 'export_evidence' ),
+				$approver,
+				array(
+					'readonly'   => true,
+					'idempotent' => true,
+				)
+			);
+		}
+	}
+
+	/**
+	 * Runs the simulation for the simulate-policy ability.
+	 *
+	 * @param array|null $input Ability input.
+	 * @return array|\WP_Error
+	 */
+	public function simulate_policy( $input = null ) {
+		if ( ! $this->simulator ) {
+			return new \WP_Error( 'agent_governance_unavailable', __( 'Simulation is not available.', 'agent-governance' ), array( 'status' => 500 ) );
+		}
+
+		$input = (array) $input;
+		$live  = $this->simulator->live();
+		$draft = $this->simulator->draft( $input );
+
+		if ( ! empty( $input['without_rule'] ) ) {
+			$draft['rules'] = array_values(
+				array_filter(
+					$live['rules'],
+					static function ( array $rule ) use ( $input ): bool {
+						return $rule['id'] !== (string) $input['without_rule'];
+					}
+				)
+			);
+		}
+
+		$result = $this->simulator->run(
+			array(
+				'live'  => $live,
+				'draft' => $draft,
+			),
+			(int) ( $input['days'] ?? 0 )
+		);
+
+		return Simulator::summary( $result );
+	}
+
+	/**
+	 * Builds the evidence file for the export-session-evidence ability.
+	 *
+	 * @param array|null $input Ability input.
+	 * @return array|\WP_Error
+	 */
+	public function export_evidence( $input = null ) {
+		$file = $this->evidence ? $this->evidence->export( sanitize_text_field( (string) ( ( (array) $input )['session'] ?? '' ) ) ) : null;
+
+		return $file ? $file : new \WP_Error( 'agent_governance_not_found', __( 'No calls in that session.', 'agent-governance' ), array( 'status' => 404 ) );
 	}
 
 	/**
@@ -219,6 +395,11 @@ final class Abilities implements Service {
 		$request = $this->requests->get( (int) ( ( (array) $input )['id'] ?? 0 ) );
 		if ( ! $request || ( get_current_user_id() !== (int) $request['user_id'] && ! current_user_can( Notifier::capability() ) ) ) {
 			return new \WP_Error( 'agent_governance_not_found', __( 'No request with that ID.', 'agent-governance' ), array( 'status' => 404 ) );
+		}
+
+		// An approver who could not open what the call touches does not get its preview or result either.
+		if ( get_current_user_id() !== (int) $request['user_id'] && ! Review::can( $request ) ) {
+			return new \WP_Error( 'agent_governance_forbidden', __( 'This call touches something you are not allowed to see.', 'agent-governance' ), array( 'status' => 403 ) );
 		}
 
 		if ( Requests::is_overdue( $request ) && $this->approvals->expire( $request ) ) {
@@ -267,7 +448,7 @@ final class Abilities implements Service {
 		$rows = array_filter(
 			$rows,
 			static function ( array $row ): bool {
-				return ! Requests::is_overdue( $row );
+				return ! Requests::is_overdue( $row ) && Review::can( $row );
 			}
 		);
 

@@ -15,25 +15,14 @@ defined( 'ABSPATH' ) || exit;
 final class Display {
 
 	/**
-	 * A stored UTC datetime in the site's format, with "x ago".
+	 * A stored UTC datetime as "5 minutes ago", with the exact time on hover.
 	 *
 	 * @param string|null $datetime Y-m-d H:i:s in UTC.
+	 * @param string      $fallback What to show when there is no time.
 	 * @return string Escaped HTML.
 	 */
-	public static function time( ?string $datetime ): string {
-		if ( ! $datetime ) {
-			return '&ndash;';
-		}
-
-		$time = (int) strtotime( $datetime . ' UTC' );
-
-		return sprintf(
-			'<time datetime="%1$s" title="%2$s">%3$s</time>',
-			esc_attr( gmdate( 'c', $time ) ),
-			esc_attr( (string) wp_date( get_option( 'date_format' ) . ' ' . get_option( 'time_format' ), $time ) ),
-			/* translators: %s: time span, such as "5 mins". */
-			esc_html( sprintf( __( '%s ago', 'agent-governance' ), human_time_diff( $time, time() ) ) )
-		);
+	public static function time( ?string $datetime, string $fallback = '' ): string {
+		return AxleUi::relative_time( $datetime ? (int) strtotime( $datetime . ' UTC' ) : 0, $fallback );
 	}
 
 	/**

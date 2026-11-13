@@ -22,7 +22,7 @@ final class GateTest extends AgentTestCase {
 		parent::setUp();
 		$this->options['agent_governance_settings'] = array( 'rate_limit' => 0 );
 		$this->options['blogname']                  = 'Test site';
-		Functions\when( 'get_users' )->justReturn( array( (object) array( 'user_email' => 'admin@example.com' ) ) );
+		Functions\when( 'get_users' )->justReturn( array( (object) array( 'ID' => 1, 'user_email' => 'admin@example.com' ) ) );
 		Functions\when( 'wp_get_ability' )->justReturn( null );
 	}
 

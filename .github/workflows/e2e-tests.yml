@@ -70,6 +70,7 @@ jobs:
           # GitHub's Ubuntu runners ship Google Chrome, so no browser download is needed.
           PW_CHANNEL: chrome
           WP_THEME: ${{ matrix.theme }}
+          WP_LEG: ${{ matrix.label }}
 
       - name: WordPress debug log
         if: failure()

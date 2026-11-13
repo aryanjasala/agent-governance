@@ -40,6 +40,21 @@ Agent Governance adds that.
 * Every agent call: who, what, the input (with passwords, tokens and keys removed), the outcome and how long it took. Calls another plugin refused, such as Axle Read-Only Mode during a freeze, are in the log too.
 * Calls are grouped into sessions. **Roll back session** restores each post the agent edited to the revision saved before its first change and moves posts it created to the trash, after showing you the plan. Other changes are listed as not reversible here.
 
+**Try a policy before you switch it on:**
+
+* On the Policies tab, **Try this policy** replays the last 30 days of the log against the rules in the form. It shows, per agent, how many calls would be allowed, held, refused or rate limited, and what changes from today, such as "14 calls that ran would have waited for approval", with example calls. Nothing is saved.
+* The replay uses the same decision code as live calls, so it cannot drift from what really happens.
+* When you approve the same kind of call from an agent five times and never reject it, the queue suggests an allow rule and shows what it would have done. You accept it, and can undo it.
+
+**Only what an approver could open:**
+
+* A preview, input or result is hidden, and deciding is refused, when the approver could not edit the post, term or user the call touches. Rolling back a session leaves posts the person may not edit alone.
+
+**Evidence:**
+
+* Download a session as a JSON file with its calls, decisions, approvers and timings, signed by your site. `wp agent-governance verify-evidence` says whether it changed.
+* Approvers see the number of waiting requests in the admin bar and in the browser tab title.
+
 Free and open source under the GPL. No pro version, no upsells, no ads in wp-admin, no tracking. And it stays that way.
 
 = Why WordPress 6.9 =
@@ -56,6 +71,7 @@ The log and the queue hold user IDs, IP addresses and what agents sent. Inputs a
 * `wp agent-governance log [--identity=<agent>] [--status=<status>]` lists agent calls.
 * `wp agent-governance pause` and `resume` stop and restart agent writes.
 * `wp agent-governance rollback <agent> [--since=<when>] [--dry-run]` rolls back what an agent changed.
+* `wp agent-governance simulate --policy=<file> --days=<n>` tries a draft policy on past calls. `evidence <session>` and `verify-evidence <file>` write and check signed session evidence.
 * `wp agent-governance rules`, `add-rule`, `delete-rule`, `settings`, `sessions` and `cleanup` cover the rest.
 
 = For developers =
@@ -92,6 +108,10 @@ Approvals keep working. Administrators (anyone with `manage_options`) approve un
 
 Yes. Calls inside an MCP tool call count as agent calls, so `wp mcp-adapter serve` is covered. Without an application password, the agent is the user given with `--user`.
 
+= Does trying a policy change anything? =
+
+No. It decides each logged call again with the same function live calls use, under today's policies and under the draft, and shows the difference. It leaves out the pause and anything the `agent_governance_policy` filter decides in code.
+
 = Does it work on multisite? =
 
 Yes, per site. Each site has its own policies, queue and log.
@@ -102,7 +122,7 @@ Yes, per site. Each site has its own policies, queue and log.
 2. A held request with its dry-run preview, before approving or rejecting it.
 3. Activity: every agent call and its outcome, with filters.
 4. Reviewing an agent session before rolling it back.
-5. Policies: rules per agent, user or role, the defaults, the rate limit and notifications.
+5. Policies: rules per agent, user or role, the defaults, the rate limit and notifications, with Try this policy.
 
 == Changelog ==
 

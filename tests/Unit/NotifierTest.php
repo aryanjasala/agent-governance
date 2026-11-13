@@ -22,9 +22,9 @@ final class NotifierTest extends AgentTestCase {
 		$this->options['blogname'] = 'Test site';
 		Functions\when( 'get_users' )->justReturn(
 			array(
-				(object) array( 'user_email' => 'admin@example.com' ),
-				(object) array( 'user_email' => 'admin@example.com' ),
-				(object) array( 'user_email' => 'not-an-email' ),
+				(object) array( 'ID' => 1, 'user_email' => 'admin@example.com' ),
+				(object) array( 'ID' => 1, 'user_email' => 'admin@example.com' ),
+				(object) array( 'ID' => 1, 'user_email' => 'not-an-email' ),
 			)
 		);
 	}

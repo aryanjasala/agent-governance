@@ -53,6 +53,8 @@ final class RollbackTest extends AgentTestCase {
 				return $post->post_title;
 			}
 		);
+		$this->caps['edit_post']   = true;
+		$this->caps['delete_post'] = true;
 		Functions\when( 'post_type_supports' )->justReturn( true );
 		Functions\when( 'wp_revisions_enabled' )->justReturn( true );
 	}
@@ -251,6 +253,7 @@ final class RollbackTest extends AgentTestCase {
 				'trashed'  => 1,
 				'failed'   => 0,
 				'skipped'  => 2,
+				'denied'   => 0,
 			),
 			$plan
 		);

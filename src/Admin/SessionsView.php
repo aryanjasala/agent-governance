@@ -73,6 +73,7 @@ final class SessionsView {
 			return;
 		}
 
+		printf( '<div class="axle-scroll" tabindex="0" role="region" aria-label="%s">', esc_attr__( 'Agent sessions', 'agent-governance' ) );
 		echo '<table class="widefat striped agg-table agg-stack agg-sessions"><thead><tr>';
 		foreach ( $columns as $heading ) {
 			echo '<th scope="col">' . esc_html( $heading ) . '</th>';
@@ -89,7 +90,7 @@ final class SessionsView {
 				Display::time( (string) $row['last'] ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 				(int) $row['calls'],
 				(int) $row['writes'],
-				$row['rolled_back'] ? Display::time( (string) $row['rolled_back'] ) : '&ndash;', // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
+				Display::time( (string) $row['rolled_back'], __( 'Not rolled back', 'agent-governance' ) ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 				esc_url( Page::url( 'sessions', array( 'session' => (string) $row['session'] ) ) ),
 				esc_html__( 'Review', 'agent-governance' ),
 				esc_attr( $columns['agent'] ),
@@ -100,7 +101,7 @@ final class SessionsView {
 				esc_attr( $columns['rolled_back'] )
 			);
 		}
-		echo '</tbody></table>';
+		echo '</tbody></table></div>';
 	}
 
 	/**
@@ -134,6 +135,7 @@ final class SessionsView {
 		}
 
 		if ( $plan['posts'] ) {
+			printf( '<div class="axle-scroll" tabindex="0" role="region" aria-label="%s">', esc_attr__( 'Posts this session changed', 'agent-governance' ) );
 			echo '<table class="widefat agg-plan-posts"><thead><tr><th scope="col">' . esc_html__( 'Post', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Rolling back', 'agent-governance' ) . '</th></tr></thead><tbody>';
 			foreach ( $plan['posts'] as $item ) {
 				$link = get_edit_post_link( (int) $item['post_id'] );
@@ -144,7 +146,7 @@ final class SessionsView {
 					esc_html( (string) $item['note'] )
 				);
 			}
-			echo '</tbody></table>';
+			echo '</tbody></table></div>';
 		}
 
 		if ( $plan['other'] ) {
@@ -171,11 +173,21 @@ final class SessionsView {
 				esc_url( admin_url( 'admin-post.php' ) ),
 				esc_attr( $session ),
 				wp_nonce_field( 'agent_governance_rollback_' . $session, '_wpnonce', true, false ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core's nonce field.
-				esc_attr__( 'Roll back this session? The posts listed are restored or moved to the trash. Posts in the trash can be restored from there.', 'agent-governance' ),
+				esc_attr__( 'This restores or trashes the posts listed above. Restored posts go back to how they were before the agent changed them, and trashed posts can be restored from the trash. Rolling back again is not possible.', 'agent-governance' ),
 				esc_html__( 'Roll back session', 'agent-governance' )
 			);
 		}
 		echo '</div></div><div class="agg-side">';
+
+		echo '<div class="axle-card agg-card"><h3 class="axle-card__title">' . esc_html__( 'Evidence', 'agent-governance' ) . '</h3>';
+		echo '<p class="description">' . esc_html__( 'A JSON file of these calls, what was decided for each, who approved and how long it took. This site signs it, so it can check later that the file did not change. Inputs and results are not in it.', 'agent-governance' ) . '</p>';
+		printf(
+			'<form method="post" action="%1$s"><input type="hidden" name="action" value="agent_governance_evidence"><input type="hidden" name="session" value="%2$s">%3$s<p><button type="submit" class="button">%4$s</button></p></form></div>',
+			esc_url( admin_url( 'admin-post.php' ) ),
+			esc_attr( $session ),
+			wp_nonce_field( 'agent_governance_evidence_' . $session, '_wpnonce', true, false ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core's nonce field.
+			esc_html__( 'Download signed evidence', 'agent-governance' )
+		);
 
 		echo '<div class="axle-card agg-card"><h3 class="axle-card__title">' . esc_html__( 'Calls', 'agent-governance' ) . '</h3><ol class="agg-calls">';
 		foreach ( $rows as $row ) {
