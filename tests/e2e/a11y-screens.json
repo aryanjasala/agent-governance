@@ -70,6 +70,12 @@
       "cleanup": [{ "js": "seed.js", "call": "unseedActivity" }]
     },
     {
+      "name": "Profile, approval notifications",
+      "url": "/wp-admin/profile.php",
+      "steps": [{ "waitFor": "#agent-governance-notifications" }],
+      "include": ["#agent-governance-notifications", "#agent-governance-notifications + .form-table"]
+    },
+    {
       "name": "Dashboard notice about requests waiting",
       "setup": [{ "js": "seed.js", "call": "seedActivity", "save": "seeded" }],
       "url": "/wp-admin/index.php",

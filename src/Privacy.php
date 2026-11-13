@@ -115,6 +115,29 @@ final class Privacy implements Service {
 			$requests = $this->requests->for_user( (int) $user->ID, $page, self::PER );
 			$done     = count( $calls ) < self::PER && count( $requests ) < self::PER;
 
+			if ( 1 === $page ) {
+				$prefs  = Preferences::get( (int) $user->ID );
+				$data[] = array(
+					'group_id'    => 'agent-governance-notifications',
+					'group_label' => __( 'AI agent approval notifications', 'agent-governance' ),
+					'item_id'     => 'agent-governance-notifications-' . $user->ID,
+					'data'        => array(
+						array(
+							'name'  => __( 'Email when a request is held', 'agent-governance' ),
+							'value' => $prefs['email'] ? __( 'Yes', 'agent-governance' ) : __( 'No', 'agent-governance' ),
+						),
+						array(
+							'name'  => __( 'Email before a request expires', 'agent-governance' ),
+							'value' => $prefs['reminder'] ? __( 'Yes', 'agent-governance' ) : __( 'No', 'agent-governance' ),
+						),
+						array(
+							'name'  => __( 'Notice in wp-admin', 'agent-governance' ),
+							'value' => $prefs['notice'] ? __( 'Yes', 'agent-governance' ) : __( 'No', 'agent-governance' ),
+						),
+					),
+				);
+			}
+
 			foreach ( $calls as $row ) {
 				$data[] = array(
 					'group_id'    => 'agent-governance-calls',
@@ -199,6 +222,9 @@ final class Privacy implements Service {
 				'done'           => true,
 			);
 		}
+
+		// The settings are the person's own; erasing them is deleting the meta.
+		delete_user_meta( (int) $user->ID, Preferences::META );
 
 		$calls    = $this->log->anonymize_user( (int) $user->ID, 500 );
 		$requests = $this->requests->anonymize_user( (int) $user->ID, 500 );

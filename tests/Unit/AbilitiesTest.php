@@ -43,7 +43,8 @@ final class AbilitiesTest extends AgentTestCase {
 		$this->abilities->register_category();
 		$this->abilities->register_abilities();
 
-		$this->assertSame( array( 'agent-governance/get-request', 'agent-governance/list-my-requests', 'agent-governance/list-pending', 'agent-governance/decide-request' ), array_keys( $registered ) );
+		$this->assertSame( array( 'agent-governance/get-request', 'agent-governance/list-my-requests', 'agent-governance/list-pending',
+				'agent-governance/get-notification-settings', 'agent-governance/decide-request' ), array_keys( $registered ) );
 		foreach ( $registered as $args ) {
 			$this->assertTrue( $args['meta']['public'] );
 			$this->assertTrue( $args['meta']['mcp']['public'] );

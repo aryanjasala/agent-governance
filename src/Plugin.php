@@ -212,9 +212,10 @@ final class Plugin {
 			new AbilityGuard( $this->gate, $this->context ),
 			new RestGuard( $this->gate ),
 			$this->notifier,
+			new Preferences(),
 			new Cleanup( $this->settings, $this->log, $this->requests, $this->approvals ),
 			new Privacy( $this->settings, $this->log, $this->requests ),
-			new Abilities( $this->requests, $this->approvals, $this->classifier, $this->simulator, $this->evidence ),
+			new Abilities( $this->requests, $this->approvals, $this->classifier, $this->simulator, $this->evidence, $this->settings ),
 			new Page( $this->settings, $this->log, $this->requests, $this->approvals, $this->rollback, $this->suggestions, $this->simulator, $this->evidence ),
 			new SiteHealth( $this->settings, $this->requests ),
 		);
@@ -227,7 +228,7 @@ final class Plugin {
 		add_action( 'shutdown', array( $this->gate, 'close_open_frames' ), 0 );
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
-			\WP_CLI::add_command( 'agent-governance', new Command( $this->settings, $this->log, $this->requests, $this->approvals, $this->rollback, $this->simulator, $this->evidence ) );
+			\WP_CLI::add_command( 'agent-governance', new Command( $this->settings, $this->log, $this->requests, $this->approvals, $this->rollback, $this->simulator, $this->evidence, $this->notifier ) );
 		}
 	}
 }

@@ -38,6 +38,12 @@ abstract class AgentTestCase extends TestCase {
 	/** @var array<int, object> Users by ID. */
 	protected $users = array();
 
+	/** @var array<int, array<string, mixed>> User meta by user. */
+	protected $user_meta = array();
+
+	/** @var array<string, int> Single events scheduled, by hook. */
+	protected $scheduled = array();
+
 	/** @var array<string, mixed> Object cache. */
 	protected $cache = array();
 
@@ -64,6 +70,8 @@ abstract class AgentTestCase extends TestCase {
 		$this->wpdb      = new \Agg_Fake_Wpdb();
 		$GLOBALS['wpdb'] = $this->wpdb;
 		$this->cache     = array();
+		$this->user_meta = array();
+		$this->scheduled = array();
 		$this->caps      = array( 'agent_governance_approve' => true );
 		$this->users     = array(
 			1 => (object) array(
@@ -176,6 +184,30 @@ abstract class AgentTestCase extends TestCase {
 		);
 
 		Functions\when( 'rest_get_authenticated_app_password' )->justReturn( '' );
+		Functions\when( 'wp_parse_url' )->alias( 'parse_url' );
+		Functions\when( 'get_user_meta' )->alias(
+			function ( $id, $key ) {
+				return $this->user_meta[ (int) $id ][ $key ] ?? '';
+			}
+		);
+		Functions\when( 'update_user_meta' )->alias(
+			function ( $id, $key, $value ) {
+				$this->user_meta[ (int) $id ][ $key ] = $value;
+				return true;
+			}
+		);
+		Functions\when( 'delete_user_meta' )->alias(
+			function ( $id, $key ) {
+				unset( $this->user_meta[ (int) $id ][ $key ] );
+				return true;
+			}
+		);
+		Functions\when( 'wp_schedule_single_event' )->alias(
+			function ( $time, $hook ) {
+				$this->scheduled[ $hook ] = $time;
+				return true;
+			}
+		);
 
 		$this->roles = new \Agg_Fake_Roles();
 		$this->roles->add(

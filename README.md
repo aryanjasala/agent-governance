@@ -43,7 +43,8 @@ AI agents now work on WordPress through the Abilities API, the MCP adapter and a
 - **Suggested rules**: when you approve the same kind of call from an agent five times and never reject it, the queue offers an allow rule with the replay result. You accept it, and can undo it
 - **Approvers only see what they could open**: a preview, input or result is hidden, and deciding is refused, when the approver could not edit the post, term or user the call touches
 - **Signed evidence**: download a session as a JSON file with its calls, decisions, approvers and timings, signed by the site, and check it later with WP-CLI
-- **Admin bar and tab title** show how many requests wait
+- **Approvals where people are**: an email and a webhook message (JSON or Slack format) for each waiting request, with what it would change and a link. A burst is grouped into one message, a reminder goes out before a request expires, and each person sets their own email, reminder and notice. Nobody can approve from a link: wp-admin asks you to sign in and confirm
+- **Admin bar and tab title** show how many requests wait, and the tab title follows the queue without a reload
 - **Never without an approver**: if a role clean-up takes the approver capability off every role, administrators still approve, and a notice gives it back in one click
 - **Privacy** export and erase, **WP-CLI** for everything, abilities, and a **Site Health** check
 
@@ -90,7 +91,7 @@ wp agent-governance rollback 6f0c2f8e-0a3e-4f53-9d1c-0d6a1f1c4b8a --dry-run
     <td width="50%" valign="top"><img src=".wordpress-org/screenshot-4.png" alt="Reviewing an agent session before rolling it back"><br><sub>Reviewing an agent session before rolling it back</sub></td>
   </tr>
   <tr>
-    <td width="50%" valign="top"><img src=".wordpress-org/screenshot-5.png" alt="Policies: rules per agent, user or role, the defaults, the rate limit and notifications"><br><sub>Policies: rules per agent, user or role, the defaults, the rate limit and notifications</sub></td>
+    <td width="50%" valign="top"><img src=".wordpress-org/screenshot-5.png" alt="Policies: rules per agent, user or role, the defaults, the rate limit and notifications, with Try this policy"><br><sub>Policies: rules per agent, user or role, the defaults, the rate limit and notifications, with Try this policy</sub></td>
   </tr>
 </table>
 

@@ -50,7 +50,7 @@ final class NotifierTest extends AgentTestCase {
 	}
 
 	public function test_the_notify_recipients_filter(): void {
-		Filters\expectApplied( 'agent_governance_notify_recipients' )->once()->with( Mockery::type( 'array' ), Mockery::type( 'array' ) )->andReturn( array( 'security@example.com', 'junk' ) );
+		Filters\expectApplied( 'agent_governance_notify_recipients' )->once()->with( Mockery::type( 'array' ), Mockery::type( 'array' ), 'held' )->andReturn( array( 'security@example.com', 'junk' ) );
 
 		$this->assertSame( array( 'security@example.com' ), $this->notifier->recipients( $this->request_row() ) );
 	}
@@ -80,18 +80,21 @@ final class NotifierTest extends AgentTestCase {
 		Functions\expect( 'wp_mail' )->once()->with( Mockery::any(), 'Custom', Mockery::any(), Mockery::any() )->andReturn( true );
 		$this->assertTrue( $this->notifier->request_held( $this->request_row() ) );
 
+		unset( $this->options[ Notifier::LAST_OPTION ] );
 		Filters\expectApplied( 'agent_governance_notification_email' )->once()->andReturn( false );
 		$this->assertFalse( $this->notifier->request_held( $this->request_row() ) );
 	}
 
 	public function test_no_email_when_it_is_off_or_nobody_approves(): void {
 		Functions\expect( 'wp_mail' )->never();
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
 
 		$this->options['agent_governance_settings'] = array( 'email' => false );
 		$this->build();
 		$this->assertFalse( $this->notifier->request_held( $this->request_row() ) );
 
 		$this->options['agent_governance_settings'] = array();
+		unset( $this->options[ Notifier::LAST_OPTION ] );
 		$this->build();
 		Functions\when( 'get_users' )->justReturn( array() );
 		$this->assertFalse( $this->notifier->request_held( $this->request_row() ) );

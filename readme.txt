@@ -26,7 +26,7 @@ Agent Governance adds that.
 
 * By default, read-only calls run, writes run and are logged, and destructive calls (abilities marked destructive, REST DELETE) wait for approval.
 * A held call gets HTTP 202 and a request ID. The agent polls the `agent-governance/get-request` ability for the outcome and the result.
-* Approvers get an email and a notice, and see the call under Tools > AI Agents with a **dry-run preview**: each field before and after, for posts, pages, terms, users, settings and plugins. Abilities can add their own preview; the rest show what the ability says it does.
+* Approvers get an email, a webhook message if you set one, and a notice, and see the call under Tools > AI Agents with a **dry-run preview**: each field before and after, for posts, pages, terms, users, settings and plugins. Abilities can add their own preview; the rest show what the ability says it does.
 * Approve runs the call as the user the agent signed in as. Reject sends the agent your reason. Requests nobody decides expire after a day.
 * An agent can never approve its own request: deciding is refused through application passwords and MCP.
 
@@ -53,13 +53,25 @@ Agent Governance adds that.
 **Evidence:**
 
 * Download a session as a JSON file with its calls, decisions, approvers and timings, signed by your site. `wp agent-governance verify-evidence` says whether it changed.
-* Approvers see the number of waiting requests in the admin bar and in the browser tab title.
+* Approvers see the number of waiting requests in the admin bar and in the browser tab title, which follows the queue without a reload.
+
+**Approvals where people are:**
+
+* When a call is held, approvers get an email, and a webhook message in JSON or Slack format if you set an address on the Policies tab. It has the agent, the call, the dry-run summary with secrets removed and a link.
+* The link opens the request in wp-admin. You sign in and confirm there. Nothing is approved from a message.
+* The first request after a quiet spell goes out at once. A burst that follows is grouped into one message. A reminder goes out once, 4 hours before a request expires.
+* Each approver turns their own email, reminder and notice off on their profile.
+* People are only told about requests on things they could change themselves. The webhook shows details only for what the person who saved it could open.
 
 Free and open source under the GPL. No pro version, no upsells, no ads in wp-admin, no tracking. And it stays that way.
 
 = Why WordPress 6.9 =
 
 Agents act through the Abilities API, which arrived in WordPress 6.9. On 7.1 and later the plugin checks each ability through the `wp_pre_execute_ability` filter; on 6.9 and 7.0 it wraps each ability's callback instead. If the plugin ends up active on an older WordPress, it deactivates itself and says why.
+
+= External services =
+
+Only if you set a webhook address on the Policies tab, the plugin posts a message to that address when a request is held or about to expire. The message has the agent name, the ability or route, the dry-run summary with secrets removed, and a link to the request. It is sent to the address you chose, and to no one else. Without an address, nothing leaves your site.
 
 = Privacy =
 
@@ -107,6 +119,14 @@ Approvals keep working. Administrators (anyone with `manage_options`) approve un
 = Does it work with the MCP adapter's STDIO server? =
 
 Yes. Calls inside an MCP tool call count as agent calls, so `wp mcp-adapter serve` is covered. Without an application password, the agent is the user given with `--user`.
+
+= Can I approve from the email or the Slack message? =
+
+No. The link opens the request in wp-admin. You sign in, read the preview and confirm there. A message never carries a way to approve.
+
+= Who gets told about a request? =
+
+Approvers who could open what the call touches, for example the post it would trash. Each of them can turn the email and the reminder off on their own profile. The webhook is one address for the whole site, so it shows details only for what the person who saved it could open.
 
 = Does trying a policy change anything? =
 

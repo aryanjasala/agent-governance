@@ -19,12 +19,38 @@ add_filter(
 		$sent[] = array(
 			'to'      => (array) $atts['to'],
 			'subject' => (string) $atts['subject'],
+			'message' => (string) $atts['message'],
 		);
 		update_option( 'agg_fixture_mail', $sent, false );
 		return true;
 	},
 	10,
 	2
+);
+
+// Catch webhook posts instead of sending them. A path with /fail answers HTTP 500.
+add_filter(
+	'pre_http_request',
+	static function ( $pre, $args, $url ) {
+		if ( 0 !== strpos( $url, 'https://hooks.example.test/' ) ) {
+			return $pre;
+		}
+		$sent   = get_option( 'agg_fixture_hooks', array() );
+		$sent[] = array(
+			'url'  => $url,
+			'body' => (string) ( $args['body'] ?? '' ),
+		);
+		update_option( 'agg_fixture_hooks', $sent, false );
+		return array(
+			'headers'  => array(),
+			'body'     => '',
+			'response' => array( 'code' => false !== strpos( $url, '/fail' ) ? 500 : 200, 'message' => '' ),
+			'cookies'  => array(),
+			'filename' => null,
+		);
+	},
+	10,
+	3
 );
 
 add_action(

@@ -12,11 +12,14 @@ use AryanX\Axle\AgentGovernance\Capability;
 use AryanX\Axle\AgentGovernance\Cleanup;
 use AryanX\Axle\AgentGovernance\Evidence;
 use AryanX\Axle\AgentGovernance\Log;
+use AryanX\Axle\AgentGovernance\Notifier;
+use AryanX\Axle\AgentGovernance\Preferences;
 use AryanX\Axle\AgentGovernance\Requests;
 use AryanX\Axle\AgentGovernance\Rollback;
 use AryanX\Axle\AgentGovernance\Schema;
 use AryanX\Axle\AgentGovernance\Settings;
 use AryanX\Axle\AgentGovernance\Simulator;
+use AryanX\Axle\AgentGovernance\Webhook;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -76,6 +79,13 @@ final class Command {
 	private Simulator $simulator;
 
 	/**
+	 * Tells approvers.
+	 *
+	 * @var Notifier|null
+	 */
+	private ?Notifier $notifier;
+
+	/**
 	 * Signed session evidence.
 	 *
 	 * @var Evidence
@@ -92,8 +102,10 @@ final class Command {
 	 * @param Rollback  $rollback  Session rollback.
 	 * @param Simulator $simulator Replays the log against a policy.
 	 * @param Evidence  $evidence  Signed session evidence.
+	 * @param Notifier  $notifier  Tells approvers.
 	 */
-	public function __construct( Settings $settings, Log $log, Requests $requests, Approvals $approvals, Rollback $rollback, Simulator $simulator, Evidence $evidence ) {
+	public function __construct( Settings $settings, Log $log, Requests $requests, Approvals $approvals, Rollback $rollback, Simulator $simulator, Evidence $evidence, ?Notifier $notifier = null ) {
+		$this->notifier  = $notifier;
 		$this->settings  = $settings;
 		$this->log       = $log;
 		$this->requests  = $requests;
@@ -795,6 +807,18 @@ final class Command {
 	 * [--notice=<on|off>]
 	 * : Show approvers a notice while calls wait.
 	 *
+	 * [--webhook-url=<url>]
+	 * : Post waiting requests to this address. An empty value turns the webhook off. With the global --user, details are shown for what that user could open.
+	 *
+	 * [--webhook-format=<format>]
+	 * : json or slack.
+	 *
+	 * [--batch-minutes=<n>]
+	 * : Minutes a burst of requests is gathered into one message. 0 sends each at once.
+	 *
+	 * [--reminder-hours=<n>]
+	 * : Hours before a request expires that approvers are reminded. 0 turns reminders off.
+	 *
 	 * [--readonly=<action>]
 	 * : What happens to read-only calls no rule matches: allow, deny or require_approval.
 	 *
@@ -830,6 +854,23 @@ final class Command {
 				$changes[ $flag ] = in_array( strtolower( (string) $assoc_args[ $flag ] ), array( 'on', '1', 'yes', 'true' ), true );
 			}
 		}
+		if ( isset( $assoc_args['webhook-url'] ) ) {
+			$changes['webhook_url'] = (string) $assoc_args['webhook-url'];
+			$changes['webhook_by']  = '' === $changes['webhook_url'] ? 0 : get_current_user_id();
+		}
+		if ( isset( $assoc_args['webhook-format'] ) ) {
+			if ( ! in_array( $assoc_args['webhook-format'], array( 'json', 'slack' ), true ) ) {
+				\WP_CLI::error( '--webhook-format must be json or slack.' );
+				return;
+			}
+			$changes['webhook_format'] = (string) $assoc_args['webhook-format'];
+		}
+		if ( isset( $assoc_args['batch-minutes'] ) ) {
+			$changes['batch_minutes'] = (int) $assoc_args['batch-minutes'];
+		}
+		if ( isset( $assoc_args['reminder-hours'] ) ) {
+			$changes['reminder_hours'] = (int) $assoc_args['reminder-hours'];
+		}
 		$defaults = $this->settings->get( 'defaults' );
 		foreach ( Settings::KINDS as $kind ) {
 			if ( isset( $assoc_args[ $kind ] ) ) {
@@ -849,6 +890,9 @@ final class Command {
 			'retention_days' => $settings['retention_days'],
 			'email'          => $settings['email'] ? 'on' : 'off',
 			'notice'         => $settings['notice'] ? 'on' : 'off',
+			'webhook'        => '' === $settings['webhook_url'] ? 'off' : $settings['webhook_format'],
+			'batch_minutes'  => $settings['batch_minutes'],
+			'reminder_hours' => $settings['reminder_hours'],
 			'readonly'       => $settings['defaults']['readonly'],
 			'write'          => $settings['defaults']['write'],
 			'destructive'    => $settings['defaults']['destructive'],
@@ -858,6 +902,121 @@ final class Command {
 			\WP_CLI::success( 'Settings saved.' );
 		}
 		self::format( $assoc_args, array( $data ), array_keys( $data ) );
+	}
+
+	/**
+	 * Posts a test message to the webhook.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp agent-governance notify-test
+	 *
+	 * @subcommand notify-test
+	 */
+	public function notify_test(): void {
+		$webhook = new Webhook( $this->settings );
+		if ( ! $webhook->configured() ) {
+			\WP_CLI::error( 'No webhook is set. Use: wp agent-governance settings --webhook-url=<url>' );
+			return;
+		}
+
+		if ( ! $webhook->test() ) {
+			\WP_CLI::error( 'The test message was not delivered: ' . ( Webhook::status()['message'] ?? '' ) );
+			return;
+		}
+
+		\WP_CLI::success( 'The test message was delivered.' );
+	}
+
+	/**
+	 * Shows or changes one approver's notification settings.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <user>
+	 * : User ID, login or email.
+	 *
+	 * [--email=<on|off>]
+	 * : Email them when a request is held.
+	 *
+	 * [--reminder=<on|off>]
+	 * : Email them before a waiting request expires.
+	 *
+	 * [--notice=<on|off>]
+	 * : Show them a notice in wp-admin while requests wait.
+	 *
+	 * [--format=<format>]
+	 * : Output format.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - json
+	 *   - yaml
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp agent-governance notify-user editor --reminder=off
+	 *
+	 * @subcommand notify-user
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Options.
+	 */
+	public function notify_user( $args, $assoc_args ): void {
+		$user = get_user_by( 'id', (string) $args[0] );
+		if ( ! $user ) {
+			$user = get_user_by( 'login', (string) $args[0] );
+		}
+		if ( ! $user ) {
+			$user = get_user_by( 'email', (string) $args[0] );
+		}
+		if ( ! $user ) {
+			\WP_CLI::error( 'No user found.' );
+			return;
+		}
+
+		$changes = array();
+		foreach ( array( 'email', 'reminder', 'notice' ) as $flag ) {
+			if ( isset( $assoc_args[ $flag ] ) ) {
+				$changes[ $flag ] = in_array( strtolower( (string) $assoc_args[ $flag ] ), array( 'on', '1', 'yes', 'true' ), true );
+			}
+		}
+
+		$prefs = $changes ? Preferences::save( (int) $user->ID, $changes ) : Preferences::get( (int) $user->ID );
+		if ( $changes ) {
+			\WP_CLI::success( 'Notification settings saved.' );
+		}
+
+		self::format(
+			$assoc_args,
+			array(
+				array(
+					'user'     => $user->user_login,
+					'email'    => $prefs['email'] ? 'on' : 'off',
+					'reminder' => $prefs['reminder'] ? 'on' : 'off',
+					'notice'   => $prefs['notice'] ? 'on' : 'off',
+				),
+			),
+			array( 'user', 'email', 'reminder', 'notice' )
+		);
+	}
+
+	/**
+	 * Sends reminders for requests that are close to expiring, now instead of at the next hourly run.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp agent-governance remind
+	 */
+	public function remind(): void {
+		if ( ! $this->notifier ) {
+			\WP_CLI::error( 'Notifications are not available.' );
+			return;
+		}
+
+		\WP_CLI::success( sprintf( '%d request(s) reminded.', $this->notifier->remind() ) );
 	}
 
 	/**

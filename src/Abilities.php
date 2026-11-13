@@ -58,6 +58,13 @@ final class Abilities implements Service {
 	private ?Evidence $evidence;
 
 	/**
+	 * Settings, for the notification ability.
+	 *
+	 * @var Settings|null
+	 */
+	private ?Settings $settings;
+
+	/**
 	 * Sets up the abilities.
 	 *
 	 * @param Requests   $requests   The approval queue.
@@ -65,13 +72,15 @@ final class Abilities implements Service {
 	 * @param Classifier $classifier Agent detection.
 	 * @param Simulator  $simulator  Replays the log against a policy.
 	 * @param Evidence   $evidence   Session evidence files.
+	 * @param Settings   $settings   Settings.
 	 */
-	public function __construct( Requests $requests, Approvals $approvals, Classifier $classifier, ?Simulator $simulator = null, ?Evidence $evidence = null ) {
+	public function __construct( Requests $requests, Approvals $approvals, Classifier $classifier, ?Simulator $simulator = null, ?Evidence $evidence = null, ?Settings $settings = null ) {
 		$this->requests   = $requests;
 		$this->approvals  = $approvals;
 		$this->classifier = $classifier;
 		$this->simulator  = $simulator;
 		$this->evidence   = $evidence;
+		$this->settings   = $settings;
 	}
 
 	/**
@@ -167,6 +176,47 @@ final class Abilities implements Service {
 				'items' => $request_schema,
 			),
 			array( $this, 'list_pending' ),
+			$approver,
+			array(
+				'readonly'   => true,
+				'idempotent' => true,
+			)
+		);
+
+		$this->ability(
+			'get-notification-settings',
+			__( 'Get approval notification settings', 'agent-governance' ),
+			__( 'How approvers are told about waiting requests: the signed-in approver\'s own settings, and whether the site posts to a webhook, groups bursts and sends reminders. The webhook address is never returned. Settings are changed on the profile screen or with WP-CLI, not by agents.', 'agent-governance' ),
+			array(
+				'type'                 => 'object',
+				'properties'           => new \stdClass(),
+				'additionalProperties' => false,
+				'default'              => array(),
+			),
+			array(
+				'type'       => 'object',
+				'properties' => array(
+					'me'   => array(
+						'type'       => 'object',
+						'properties' => array(
+							'email'    => array( 'type' => 'boolean' ),
+							'reminder' => array( 'type' => 'boolean' ),
+							'notice'   => array( 'type' => 'boolean' ),
+						),
+					),
+					'site' => array(
+						'type'       => 'object',
+						'properties' => array(
+							'email'          => array( 'type' => 'boolean' ),
+							'webhook'        => array( 'type' => 'boolean' ),
+							'webhook_format' => array( 'type' => 'string' ),
+							'batch_minutes'  => array( 'type' => 'integer' ),
+							'reminder_hours' => array( 'type' => 'integer' ),
+						),
+					),
+				),
+			),
+			array( $this, 'get_notification_settings' ),
 			$approver,
 			array(
 				'readonly'   => true,
@@ -407,6 +457,28 @@ final class Abilities implements Service {
 		}
 
 		return self::present( $request );
+	}
+
+	/**
+	 * Ability: how approvers are told.
+	 *
+	 * @param array|null $input Ability input.
+	 * @return array
+	 */
+	public function get_notification_settings( $input = null ): array {
+		unset( $input );
+		$settings = $this->settings ?? new Settings();
+
+		return array(
+			'me'   => Preferences::get( get_current_user_id() ),
+			'site' => array(
+				'email'          => (bool) $settings->get( 'email' ),
+				'webhook'        => '' !== (string) $settings->get( 'webhook_url' ),
+				'webhook_format' => (string) $settings->get( 'webhook_format' ),
+				'batch_minutes'  => (int) $settings->get( 'batch_minutes' ),
+				'reminder_hours' => (int) $settings->get( 'reminder_hours' ),
+			),
+		);
 	}
 
 	/**
