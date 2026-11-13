@@ -65,7 +65,7 @@ final class ActivityView {
 			'refused'  => __( 'Refused by another plugin', 'agent-governance' ),
 		);
 
-		echo '<form method="get" class="agg-filters"><input type="hidden" name="page" value="' . esc_attr( Page::SLUG ) . '"><input type="hidden" name="tab" value="activity">';
+		echo '<form method="get" class="agg-filters axle-toolbar"><input type="hidden" name="page" value="' . esc_attr( Page::SLUG ) . '"><input type="hidden" name="tab" value="activity">';
 		echo '<label class="screen-reader-text" for="agg-identity">' . esc_html__( 'Agent', 'agent-governance' ) . '</label><select id="agg-identity" name="identity"><option value="">' . esc_html__( 'Every agent', 'agent-governance' ) . '</option>';
 		foreach ( $this->log->identities() as $key => $label ) {
 			printf( '<option value="%1$s"%2$s>%3$s</option>', esc_attr( $key ), selected( $key, $identity, false ), esc_html( $label ) );
@@ -101,10 +101,11 @@ final class ActivityView {
 		);
 
 		if ( ! $found['rows'] ) {
-			echo '<div class="axle-empty agg-empty"><p>' . esc_html__( 'No agent calls yet. Every call an agent makes through an ability or the REST API is logged here.', 'agent-governance' ) . '</p></div>';
+			echo '<div class="axle-empty agg-empty"><p>' . esc_html__( 'No agent calls yet. Every call an agent makes through an ability or the REST API is logged here. To get one, connect an agent with an application password in your profile, or through the MCP adapter.', 'agent-governance' ) . '</p></div>';
 			return;
 		}
 
+		printf( '<div class="axle-scroll" tabindex="0" role="region" aria-label="%s">', esc_attr__( 'Agent calls', 'agent-governance' ) );
 		echo '<table class="widefat striped agg-table agg-stack agg-activity"><thead><tr>';
 		foreach ( $columns as $heading ) {
 			echo '<th scope="col">' . esc_html( $heading ) . '</th>';
@@ -143,7 +144,7 @@ final class ActivityView {
 				esc_attr( $columns['duration'] )
 			);
 		}
-		echo '</tbody></table>';
+		echo '</tbody></table></div>';
 
 		RequestsView::pagination( $found['total'], $per, $paged );
 	}

@@ -10,6 +10,8 @@ namespace AryanX\Axle\AgentGovernance\Admin;
 use AryanX\Axle\AgentGovernance\Log;
 use AryanX\Axle\AgentGovernance\Notifier;
 use AryanX\Axle\AgentGovernance\Requests;
+use AryanX\Axle\AgentGovernance\Review;
+use AryanX\Axle\AgentGovernance\Suggestions;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -27,12 +29,21 @@ final class RequestsView {
 	private Requests $requests;
 
 	/**
+	 * Allow rules the approvals suggest.
+	 *
+	 * @var Suggestions|null
+	 */
+	private ?Suggestions $suggestions;
+
+	/**
 	 * Sets up the tab.
 	 *
-	 * @param Requests $requests The approval queue.
+	 * @param Requests         $requests    The approval queue.
+	 * @param Suggestions|null $suggestions Allow rules the approvals suggest.
 	 */
-	public function __construct( Requests $requests ) {
-		$this->requests = $requests;
+	public function __construct( Requests $requests, ?Suggestions $suggestions = null ) {
+		$this->requests    = $requests;
+		$this->suggestions = $suggestions;
 	}
 
 	/**
@@ -93,11 +104,20 @@ final class RequestsView {
 			'status'  => __( 'Status', 'agent-governance' ),
 		);
 
+		if ( Requests::PENDING === $status ) {
+			$this->render_suggestions();
+		}
+
 		if ( ! $found['rows'] ) {
-			echo '<div class="axle-empty agg-empty"><p>' . esc_html( Requests::PENDING === $status ? __( 'No agent calls are waiting for approval. When a rule holds a call, it shows up here.', 'agent-governance' ) : __( 'No requests here.', 'agent-governance' ) ) . '</p></div>';
+			echo '<div class="axle-empty agg-empty"><p>' . esc_html( Requests::PENDING === $status ? __( 'No agent calls are waiting for approval. When a rule holds a call, it shows up here, and you can approve or reject it in one step. Rules decide which calls are held.', 'agent-governance' ) : __( 'No requests here. Pick another status above to see the rest.', 'agent-governance' ) ) . '</p>';
+			if ( Requests::PENDING === $status && current_user_can( Page::settings_capability() ) ) {
+				printf( '<p><a class="button" href="%1$s">%2$s</a></p>', esc_url( Page::url( 'policies' ) ), esc_html__( 'Review the rules', 'agent-governance' ) );
+			}
+			echo '</div>';
 			return;
 		}
 
+		printf( '<div class="axle-scroll" tabindex="0" role="region" aria-label="%s">', esc_attr__( 'Agent requests', 'agent-governance' ) );
 		echo '<table class="widefat striped agg-table agg-stack agg-requests"><thead><tr>';
 		foreach ( $columns as $heading ) {
 			echo '<th scope="col">' . esc_html( $heading ) . '</th>';
@@ -107,13 +127,14 @@ final class RequestsView {
 		foreach ( $found['rows'] as $row ) {
 			$preview = json_decode( (string) $row['dry_run'], true );
 			$status  = Requests::is_overdue( $row ) ? Requests::EXPIRED : (string) $row['status'];
+			$summary = Review::can( $row ) ? self::summary( is_array( $preview ) ? $preview : array() ) : __( 'You are not allowed to open what this call touches.', 'agent-governance' );
 			printf(
 				'<tr data-request="%1$d"><td data-colname="%8$s"><a class="row-title" href="%2$s">#%1$d</a> %3$s</td><td data-colname="%9$s">%4$s</td><td data-colname="%10$s">%5$s</td><td data-colname="%11$s">%6$s</td><td data-colname="%12$s">%7$s</td></tr>',
 				(int) $row['id'],
 				esc_url( Page::request_url( (int) $row['id'] ) ),
 				Display::call( $row ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 				esc_html( Log::identity_label( $row ) ),
-				esc_html( self::summary( is_array( $preview ) ? $preview : array() ) ),
+				esc_html( $summary ),
 				Display::time( (string) $row['created'] ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 				Display::badge( $status ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
 				esc_attr( $columns['request'] ),
@@ -123,7 +144,7 @@ final class RequestsView {
 				esc_attr( $columns['status'] )
 			);
 		}
-		echo '</tbody></table>';
+		echo '</tbody></table></div>';
 
 		self::pagination( $found['total'], $per, $paged );
 	}
@@ -151,19 +172,25 @@ final class RequestsView {
 		echo '<div class="agg-columns"><div class="agg-main">';
 
 		$pending = Requests::PENDING === $status;
-		echo '<div class="axle-card agg-card agg-preview"><h3 class="axle-card__title">' . esc_html( $pending ? __( 'What it would change', 'agent-governance' ) : __( 'What it was asked to change', 'agent-governance' ) ) . '</h3>';
-		$this->render_preview( is_array( $preview ) ? $preview : array(), $pending );
-		echo '</div>';
-
-		echo '<div class="axle-card agg-card"><h3 class="axle-card__title">' . esc_html__( 'Input', 'agent-governance' ) . '</h3>';
-		echo '<p class="description">' . esc_html__( 'What the agent sent. Passwords, tokens and keys are hidden here.', 'agent-governance' ) . '</p>';
-		echo Display::json( \AryanX\Axle\AgentGovernance\Redactor::encode( json_decode( (string) $row['input'], true ), 'input' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
-		echo '</div>';
-
-		if ( null !== $row['result'] && '' !== (string) $row['result'] ) {
-			echo '<div class="axle-card agg-card agg-result"><h3 class="axle-card__title">' . esc_html__( 'Result', 'agent-governance' ) . '</h3>';
-			echo Display::json( (string) $row['result'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
+		$may     = Review::can( $row );
+		if ( ! $may ) {
+			echo '<div class="notice notice-warning inline agg-no-access"><p>' . esc_html__( 'This call touches something you are not allowed to open, so its preview, input and result are hidden and you cannot decide it. Ask an administrator, or someone who can edit it.', 'agent-governance' ) . '</p></div>';
+		}
+		if ( $may ) {
+			echo '<div class="axle-card agg-card agg-preview"><h3 class="axle-card__title">' . esc_html( $pending ? __( 'What it would change', 'agent-governance' ) : __( 'What it was asked to change', 'agent-governance' ) ) . '</h3>';
+			$this->render_preview( is_array( $preview ) ? $preview : array(), $pending );
 			echo '</div>';
+
+			echo '<div class="axle-card agg-card"><h3 class="axle-card__title">' . esc_html__( 'Input', 'agent-governance' ) . '</h3>';
+			echo '<p class="description">' . esc_html__( 'What the agent sent. Passwords, tokens and keys are hidden here.', 'agent-governance' ) . '</p>';
+			echo Display::json( \AryanX\Axle\AgentGovernance\Redactor::encode( json_decode( (string) $row['input'], true ), 'input' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
+			echo '</div>';
+
+			if ( null !== $row['result'] && '' !== (string) $row['result'] ) {
+				echo '<div class="axle-card agg-card agg-result"><h3 class="axle-card__title">' . esc_html__( 'Result', 'agent-governance' ) . '</h3>';
+				echo Display::json( (string) $row['result'] ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
+				echo '</div>';
+			}
 		}
 
 		echo '</div><div class="agg-side">';
@@ -178,8 +205,7 @@ final class RequestsView {
 			__( 'Asked', 'agent-governance' )        => Display::time( (string) $row['created'] ),
 		);
 		if ( Requests::PENDING === $status ) {
-			/* translators: %s: time span. */
-			$facts[ __( 'Expires', 'agent-governance' ) ] = esc_html( sprintf( __( 'in %s', 'agent-governance' ), human_time_diff( time(), Requests::expires_at( $row ) ) ) );
+			$facts[ __( 'Expires', 'agent-governance' ) ] = AxleUi::relative_time( Requests::expires_at( $row ) );
 		}
 		if ( $row['decided_at'] ) {
 			$facts[ __( 'Decided', 'agent-governance' ) ] = Display::time( (string) $row['decided_at'] ) . ( $decider ? ' ' . esc_html( sprintf( /* translators: %s: user name. */ __( 'by %s', 'agent-governance' ), $decider->display_name ) ) : '' );
@@ -193,11 +219,83 @@ final class RequestsView {
 		}
 		echo '</dl></div>';
 
-		if ( Requests::PENDING === $status && current_user_can( Notifier::capability() ) ) {
+		if ( Requests::PENDING === $status && $may && current_user_can( Notifier::capability() ) ) {
 			$this->render_decision( $id );
 		}
 
 		echo '</div></div>';
+	}
+
+	/**
+	 * Allow rules the approvals suggest, with what each would have done. Shown
+	 * only to people who may change policies, and never applied by themselves.
+	 */
+	private function render_suggestions(): void {
+		if ( ! $this->suggestions || ! current_user_can( Page::settings_capability() ) ) {
+			return;
+		}
+
+		foreach ( $this->suggestions->for_user( get_current_user_id() ) as $suggestion ) {
+			$result = $suggestion['result'] ?? array(
+				'days'  => 0,
+				'freed' => 0,
+				'other' => 0,
+			);
+			$key    = (string) $suggestion['key'];
+
+			echo '<section class="axle-card agg-suggestion" aria-labelledby="agg-suggest-' . esc_attr( $key ) . '">';
+			printf(
+				'<h2 class="axle-card__title" id="agg-suggest-%1$s">%2$s</h2>',
+				esc_attr( $key ),
+				esc_html__( 'Suggested rule', 'agent-governance' )
+			);
+			printf(
+				'<p>%s</p>',
+				sprintf(
+					/* translators: 1: the call as a pattern, 2: number of approvals, 3: agent name. */
+					esc_html( _n( 'You approved %1$s %2$d time for %3$s and never rejected it. Always allow it for this agent?', 'You approved %1$s %2$d times for %3$s and never rejected it. Always allow it for this agent?', (int) $suggestion['approved'], 'agent-governance' ) ),
+					'<code dir="ltr">' . esc_html( (string) $suggestion['pattern'] ) . '</code>',
+					(int) $suggestion['approved'],
+					esc_html( (string) $suggestion['agent'] )
+				)
+			);
+
+			$days = (int) $result['days'];
+			if ( $days > 0 ) {
+				$text = sprintf(
+					/* translators: 1: calls that would run at once, 2: days of history. */
+					_n( 'Over the last %2$d days, this rule would have let %1$d held call run at once.', 'Over the last %2$d days, this rule would have let %1$d held calls run at once.', (int) $result['freed'], 'agent-governance' ),
+					(int) $result['freed'],
+					$days
+				);
+				$text .= ' ' . ( (int) $result['other']
+					? sprintf(
+						/* translators: %d: number of calls. */
+						_n( 'It would also change %d other call.', 'It would also change %d other calls.', (int) $result['other'], 'agent-governance' ),
+						(int) $result['other']
+					)
+					: __( 'Nothing else would change.', 'agent-governance' ) );
+				echo '<p class="agg-suggestion-result">' . esc_html( $text ) . '</p>';
+			}
+
+			$action = esc_url( admin_url( 'admin-post.php' ) );
+			echo '<div class="axle-actions">';
+			printf(
+				'<form method="post" action="%1$s"><input type="hidden" name="action" value="agent_governance_accept_suggestion"><input type="hidden" name="suggestion" value="%2$s">%3$s<button type="submit" class="button">%4$s</button></form>',
+				$action, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above.
+				esc_attr( $key ),
+				wp_nonce_field( 'agent_governance_suggestion_' . $key, '_wpnonce', true, false ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core's nonce field.
+				esc_html__( 'Always allow it', 'agent-governance' )
+			);
+			printf(
+				'<form method="post" action="%1$s"><input type="hidden" name="action" value="agent_governance_dismiss_suggestion"><input type="hidden" name="suggestion" value="%2$s">%3$s<button type="submit" class="button-link">%4$s</button></form>',
+				$action, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above.
+				esc_attr( $key ),
+				wp_nonce_field( 'agent_governance_suggestion_' . $key, '_wpnonce', true, false ), // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core's nonce field.
+				esc_html__( 'Not now', 'agent-governance' )
+			);
+			echo '</div></section>';
+		}
 	}
 
 	/**
@@ -240,23 +338,26 @@ final class RequestsView {
 			return;
 		}
 
-		echo '<table class="widefat agg-diff"><thead><tr><th scope="col">' . esc_html__( 'Field', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Now', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'After', 'agent-governance' ) . '</th></tr></thead><tbody>';
+		printf( '<div class="axle-scroll" tabindex="0" role="region" aria-label="%s">', esc_attr__( 'Fields this call would change', 'agent-governance' ) );
+		echo '<table class="widefat agg-diff"><thead><tr><th scope="col">' . esc_html__( 'Field', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Change', 'agent-governance' ) . '</th></tr></thead><tbody>';
 		foreach ( $changes as $change ) {
 			$before = (string) ( $change['before'] ?? '' );
 			$after  = (string) ( $change['after'] ?? '' );
 			if ( strlen( $before ) > 120 || strlen( $after ) > 120 || false !== strpos( $before . $after, "\n" ) ) {
 				$diff = wp_text_diff( $before, $after, array( 'show_split_view' => true ) );
-				printf( '<tr><th scope="row">%1$s</th><td colspan="2" class="agg-text-diff" dir="ltr">%2$s</td></tr>', esc_html( (string) $change['field'] ), $diff ? wp_kses_post( $diff ) : esc_html__( 'No visible change.', 'agent-governance' ) );
+				printf( '<tr><th scope="row">%1$s</th><td class="agg-text-diff" dir="ltr">%2$s</td></tr>', esc_html( (string) $change['field'] ), $diff ? wp_kses_post( $diff ) : esc_html__( 'No visible change.', 'agent-governance' ) );
 				continue;
 			}
 			printf(
-				'<tr><th scope="row">%1$s</th><td dir="auto"><del>%2$s</del></td><td dir="auto"><ins>%3$s</ins></td></tr>',
+				'<tr><th scope="row">%1$s</th><td dir="auto"><div class="axle-diff"><del><span class="screen-reader-text">%4$s</span> %2$s</del><ins><span class="screen-reader-text">%5$s</span> %3$s</ins></div></td></tr>',
 				esc_html( (string) $change['field'] ),
 				'' === $before ? '<em>' . esc_html__( 'empty', 'agent-governance' ) . '</em>' : esc_html( $before ),
-				'' === $after ? '<em>' . esc_html__( 'empty', 'agent-governance' ) . '</em>' : esc_html( $after )
+				'' === $after ? '<em>' . esc_html__( 'empty', 'agent-governance' ) . '</em>' : esc_html( $after ),
+				esc_html__( 'Before:', 'agent-governance' ),
+				esc_html__( 'After:', 'agent-governance' )
 			);
 		}
-		echo '</tbody></table>';
+		echo '</tbody></table></div>';
 	}
 
 	/**
@@ -276,7 +377,7 @@ final class RequestsView {
 			$action, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped above.
 			(int) $id,
 			$nonce, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core's nonce field.
-			esc_attr__( 'Approve this call and run it now?', 'agent-governance' ),
+			esc_attr__( 'Approving runs this call now, as the user the agent signed in as. It cannot be undone from here.', 'agent-governance' ),
 			esc_html__( 'Approve and run', 'agent-governance' )
 		);
 
@@ -286,8 +387,8 @@ final class RequestsView {
 			(int) $id,
 			$nonce, // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Core's nonce field.
 			esc_html__( 'Reason, shown to the agent', 'agent-governance' ),
-			esc_attr__( 'Reject this call? The agent sees your reason. A rejected call cannot be approved later.', 'agent-governance' ),
-			esc_html__( 'Reject', 'agent-governance' )
+			esc_attr__( 'Rejecting tells the agent your reason. A rejected call cannot be approved later.', 'agent-governance' ),
+			esc_html__( 'Reject this call', 'agent-governance' )
 		);
 
 		echo '</div>';

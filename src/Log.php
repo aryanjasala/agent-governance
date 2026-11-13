@@ -288,6 +288,59 @@ final class Log {
 	}
 
 	/**
+	 * The ID of the oldest row a replay should read: the start of the window, or
+	 * the row that leaves `$cap` calls in it, whichever is newer.
+	 *
+	 * @param int $since Unix time the window starts.
+	 * @param int $cap   Most calls to replay.
+	 * @return array{start: int, truncated: bool} The first row ID to read, 0 when the window has no calls, and whether the cap cut the window short.
+	 */
+	public function replay_start( int $since, int $cap ): array {
+		global $wpdb;
+
+		$since = gmdate( 'Y-m-d H:i:s', $since );
+
+		// phpcs:disable WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The plugin's own table, read once per simulation; indexed on created.
+		$first = (int) $wpdb->get_var( $wpdb->prepare( 'SELECT MIN(id) FROM %i WHERE created >= %s', Schema::log_table(), $since ) );
+		if ( ! $first ) {
+			return array(
+				'start'     => 0,
+				'truncated' => false,
+			);
+		}
+
+		$nth = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM %i WHERE created >= %s ORDER BY id DESC LIMIT 1 OFFSET %d', Schema::log_table(), $since, max( 0, $cap - 1 ) ) );
+		// phpcs:enable
+
+		$start = null === $nth ? $first : max( $first, (int) $nth );
+
+		return array(
+			'start'     => $start,
+			'truncated' => $start > $first,
+		);
+	}
+
+	/**
+	 * A chunk of the calls a replay decides again, oldest first: every call a
+	 * policy decided (allowed, held or denied), not the runs of approved requests, the refusals by other plugins
+	 * or this plugin's own abilities.
+	 *
+	 * @param int $after_id Read rows with a higher ID.
+	 * @param int $limit    Rows to read, 1 to 1000.
+	 * @return array[]
+	 */
+	public function replay_rows( int $after_id, int $limit ): array {
+		global $wpdb;
+
+		$limit = max( 1, min( 1000, $limit ) );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The plugin's own table, read in chunks by ID for a simulation.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT id, created, identity, agent, user_id, via, source, target, method, kind, decision FROM %i WHERE id > %d AND decision IN ('allowed','held','denied') AND target NOT LIKE %s ORDER BY id ASC LIMIT %d", Schema::log_table(), $after_id, $wpdb->esc_like( Abilities::CATEGORY . '/' ) . '%', $limit ), ARRAY_A );
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/**
 	 * Sessions, most recent first.
 	 *
 	 * @param array $args identity, limit.

@@ -98,6 +98,27 @@ final class Plugin {
 	private Rollback $rollback;
 
 	/**
+	 * Replays the log against a policy.
+	 *
+	 * @var Simulator
+	 */
+	private Simulator $simulator;
+
+	/**
+	 * Allow rules the approvals suggest.
+	 *
+	 * @var Suggestions
+	 */
+	private Suggestions $suggestions;
+
+	/**
+	 * Signed session evidence.
+	 *
+	 * @var Evidence
+	 */
+	private Evidence $evidence;
+
+	/**
 	 * Starts the plugin. Runs on `plugins_loaded`.
 	 */
 	public static function boot(): void {
@@ -127,16 +148,19 @@ final class Plugin {
 	 * Builds the shared objects.
 	 */
 	private function __construct() {
-		$this->settings   = new Settings();
-		$this->context    = new Context();
-		$this->classifier = new Classifier( $this->context );
-		$this->log        = new Log();
-		$this->requests   = new Requests();
-		$this->policy     = new Policy( $this->settings, $this->log );
-		$this->notifier   = new Notifier( $this->settings, $this->requests );
-		$this->gate       = new Gate( $this->settings, $this->context, $this->classifier, $this->policy, $this->log, $this->requests, new DryRun(), $this->notifier );
-		$this->approvals  = new Approvals( $this->requests, $this->context );
-		$this->rollback   = new Rollback( $this->log );
+		$this->settings    = new Settings();
+		$this->context     = new Context();
+		$this->classifier  = new Classifier( $this->context );
+		$this->log         = new Log();
+		$this->requests    = new Requests();
+		$this->policy      = new Policy( $this->settings, $this->log );
+		$this->notifier    = new Notifier( $this->settings, $this->requests );
+		$this->gate        = new Gate( $this->settings, $this->context, $this->classifier, $this->policy, $this->log, $this->requests, new DryRun(), $this->notifier );
+		$this->approvals   = new Approvals( $this->requests, $this->context );
+		$this->rollback    = new Rollback( $this->log );
+		$this->simulator   = new Simulator( $this->settings, $this->log );
+		$this->suggestions = new Suggestions( $this->settings, $this->requests, $this->simulator );
+		$this->evidence    = new Evidence( $this->log, $this->requests );
 	}
 
 	/**
@@ -190,8 +214,8 @@ final class Plugin {
 			$this->notifier,
 			new Cleanup( $this->settings, $this->log, $this->requests, $this->approvals ),
 			new Privacy( $this->settings, $this->log, $this->requests ),
-			new Abilities( $this->requests, $this->approvals, $this->classifier ),
-			new Page( $this->settings, $this->log, $this->requests, $this->approvals, $this->rollback ),
+			new Abilities( $this->requests, $this->approvals, $this->classifier, $this->simulator, $this->evidence ),
+			new Page( $this->settings, $this->log, $this->requests, $this->approvals, $this->rollback, $this->suggestions, $this->simulator, $this->evidence ),
 			new SiteHealth( $this->settings, $this->requests ),
 		);
 
@@ -203,7 +227,7 @@ final class Plugin {
 		add_action( 'shutdown', array( $this->gate, 'close_open_frames' ), 0 );
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
-			\WP_CLI::add_command( 'agent-governance', new Command( $this->settings, $this->log, $this->requests, $this->approvals, $this->rollback ) );
+			\WP_CLI::add_command( 'agent-governance', new Command( $this->settings, $this->log, $this->requests, $this->approvals, $this->rollback, $this->simulator, $this->evidence ) );
 		}
 	}
 }

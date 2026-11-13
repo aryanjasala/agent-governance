@@ -47,6 +47,37 @@ final class Notifier implements Service {
 	 */
 	public function register(): void {
 		add_action( 'admin_notices', array( $this, 'notice' ) );
+		add_action( 'admin_bar_menu', array( $this, 'admin_bar' ), 90 );
+	}
+
+	/**
+	 * Adds the number of waiting requests to the admin bar, for approvers.
+	 *
+	 * @param \WP_Admin_Bar $bar The admin bar.
+	 */
+	public function admin_bar( $bar ): void {
+		/**
+		 * Filters whether approvers see the number of waiting agent requests in the admin bar.
+		 *
+		 * @param bool $show Default true.
+		 */
+		if ( ! apply_filters( 'agent_governance_show_admin_bar', true ) || ! is_admin_bar_showing() || ! current_user_can( self::capability() ) ) {
+			return;
+		}
+
+		$count = $this->requests->pending_count();
+		if ( ! $count ) {
+			return;
+		}
+
+		$bar->add_node(
+			array(
+				'id'    => 'agent-governance',
+				/* translators: %d: number of requests. */
+				'title' => esc_html( sprintf( _n( '%d agent request waiting', '%d agent requests waiting', $count, 'agent-governance' ), $count ) ),
+				'href'  => Page::url( 'requests' ),
+			)
+		);
 	}
 
 	/**
@@ -79,14 +110,17 @@ final class Notifier implements Service {
 			array(
 				// While no role has the approver capability, whoever stands in for it.
 				'capability' => Capability::effective(),
-				'fields'     => array( 'user_email' ),
+				'fields'     => array( 'ID', 'user_email' ),
 				'number'     => 50,
 			)
 		);
 
+		// Only people who could open what the call touches get its summary.
 		$emails = array();
 		foreach ( $users as $user ) {
-			$emails[] = (string) $user->user_email;
+			if ( Review::can( $request, (int) $user->ID ) ) {
+				$emails[] = (string) $user->user_email;
+			}
 		}
 
 		/**

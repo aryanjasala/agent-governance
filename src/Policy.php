@@ -90,35 +90,70 @@ final class Policy {
 	}
 
 	/**
-	 * The decision before the filter.
+	 * The decision before the filter, from the live settings and the log.
 	 *
 	 * @param array $call     The call.
 	 * @param array $identity The agent.
 	 * @return array{action: string, reason: string, rule: array|null}
 	 */
 	private function evaluate( array $call, array $identity ): array {
+		$policy = array(
+			'rules'      => $this->settings->all_rules(),
+			'defaults'   => $this->settings->default_rules(),
+			'rate_limit' => $this->settings->rate_limit( (string) $identity['key'] ),
+		);
+
+		// Own abilities and the pause do not need the log, so it is only read when a limit is set.
+		$limit  = (int) $policy['rate_limit'];
+		$recent = 0;
+		if ( $limit > 0 && ! self::is_own( (string) $call['target'] ) && ! ( 'readonly' !== $call['kind'] && $this->settings->is_paused() ) ) {
+			$recent = $this->log->recent_calls( (string) $identity['key'] );
+		}
+
+		return self::resolve(
+			$call,
+			$identity,
+			$policy,
+			array(
+				'paused' => $this->settings->is_paused(),
+				'recent' => $recent,
+			)
+		);
+	}
+
+	/**
+	 * The pure decision: the same code answers a live call and a replay of a
+	 * logged one, so a simulation cannot drift from what really happens.
+	 *
+	 * @param array $call     The call: source, target, method, kind, input.
+	 * @param array $identity The agent: key, user_id.
+	 * @param array $policy   rules (each with scope, subject, pattern, action), defaults (action per kind) and rate_limit (calls per minute, 0 for none).
+	 * @param array $state    paused (bool) and recent (calls this agent made in the last minute).
+	 * @return array{action: string, reason: string, rule: array|null}
+	 */
+	public static function resolve( array $call, array $identity, array $policy, array $state ): array {
 		if ( self::is_own( (string) $call['target'] ) ) {
 			return self::decision( Settings::ALLOW, 'own' );
 		}
 
-		if ( 'readonly' !== $call['kind'] && $this->settings->is_paused() ) {
+		if ( 'readonly' !== $call['kind'] && ! empty( $state['paused'] ) ) {
 			return self::decision( Settings::DENY, 'paused' );
 		}
 
-		$limit = $this->settings->rate_limit( (string) $identity['key'] );
-		if ( $limit > 0 && $this->log->recent_calls( (string) $identity['key'] ) >= $limit ) {
+		$limit = (int) ( $policy['rate_limit'] ?? 0 );
+		if ( $limit > 0 && (int) ( $state['recent'] ?? 0 ) >= $limit ) {
 			return self::decision( Settings::DENY, 'rate_limit' );
 		}
 
-		$rule = $this->match( $call, $identity, $this->settings->all_rules() );
+		$rule = self::first_match( $call, $identity, (array) ( $policy['rules'] ?? array() ) );
 		if ( $rule ) {
 			return self::decision( $rule['action'], 'rule', $rule );
 		}
 
-		$defaults = $this->settings->default_rules();
+		$defaults = (array) ( $policy['defaults'] ?? array() );
 		$kind     = in_array( $call['kind'], Settings::KINDS, true ) ? $call['kind'] : 'write';
 
-		return self::decision( $defaults[ $kind ], 'default' );
+		return self::decision( $defaults[ $kind ] ?? Settings::defaults()['defaults'][ $kind ], 'default' );
 	}
 
 	/**
@@ -130,6 +165,18 @@ final class Policy {
 	 * @return array|null
 	 */
 	public function match( array $call, array $identity, array $rules ): ?array {
+		return self::first_match( $call, $identity, $rules );
+	}
+
+	/**
+	 * The first matching rule of the most specific scope.
+	 *
+	 * @param array   $call     The call.
+	 * @param array   $identity The agent.
+	 * @param array[] $rules    Rules.
+	 * @return array|null
+	 */
+	public static function first_match( array $call, array $identity, array $rules ): ?array {
 		foreach ( Settings::SCOPES as $scope ) {
 			foreach ( $rules as $rule ) {
 				if ( $rule['scope'] === $scope && self::applies_to( $rule, $identity ) && self::pattern_matches( (string) $rule['pattern'], (string) $call['target'], (string) $call['method'] ) ) {

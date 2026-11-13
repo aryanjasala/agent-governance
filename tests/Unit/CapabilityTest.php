@@ -175,7 +175,7 @@ final class CapabilityTest extends AgentTestCase {
 	public function test_approval_emails_go_to_the_stand_ins_while_no_role_has_it(): void {
 		$this->strip();
 		$this->options['agent_governance_settings'] = array( 'email' => true );
-		Functions\expect( 'get_users' )->once()->with( Mockery::on( static function ( $args ) { return 'manage_options' === $args['capability']; } ) )->andReturn( array( (object) array( 'user_email' => 'owner@example.com' ) ) ); // phpcs:ignore
+		Functions\expect( 'get_users' )->once()->with( Mockery::on( static function ( $args ) { return 'manage_options' === $args['capability']; } ) )->andReturn( array( (object) array( 'ID' => 1, 'user_email' => 'owner@example.com' ) ) ); // phpcs:ignore
 
 		$this->assertSame( array( 'owner@example.com' ), $this->notifier->recipients( $this->request_row() ) );
 	}

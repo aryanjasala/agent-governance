@@ -10,11 +10,13 @@ namespace AryanX\Axle\AgentGovernance\Cli;
 use AryanX\Axle\AgentGovernance\Approvals;
 use AryanX\Axle\AgentGovernance\Capability;
 use AryanX\Axle\AgentGovernance\Cleanup;
+use AryanX\Axle\AgentGovernance\Evidence;
 use AryanX\Axle\AgentGovernance\Log;
 use AryanX\Axle\AgentGovernance\Requests;
 use AryanX\Axle\AgentGovernance\Rollback;
 use AryanX\Axle\AgentGovernance\Schema;
 use AryanX\Axle\AgentGovernance\Settings;
+use AryanX\Axle\AgentGovernance\Simulator;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -67,6 +69,20 @@ final class Command {
 	private Rollback $rollback;
 
 	/**
+	 * Replays the log against a policy.
+	 *
+	 * @var Simulator
+	 */
+	private Simulator $simulator;
+
+	/**
+	 * Signed session evidence.
+	 *
+	 * @var Evidence
+	 */
+	private Evidence $evidence;
+
+	/**
 	 * Sets up the command.
 	 *
 	 * @param Settings  $settings  Settings.
@@ -74,13 +90,17 @@ final class Command {
 	 * @param Requests  $requests  The approval queue.
 	 * @param Approvals $approvals Approvals.
 	 * @param Rollback  $rollback  Session rollback.
+	 * @param Simulator $simulator Replays the log against a policy.
+	 * @param Evidence  $evidence  Signed session evidence.
 	 */
-	public function __construct( Settings $settings, Log $log, Requests $requests, Approvals $approvals, Rollback $rollback ) {
+	public function __construct( Settings $settings, Log $log, Requests $requests, Approvals $approvals, Rollback $rollback, Simulator $simulator, Evidence $evidence ) {
 		$this->settings  = $settings;
 		$this->log       = $log;
 		$this->requests  = $requests;
 		$this->approvals = $approvals;
 		$this->rollback  = $rollback;
+		$this->simulator = $simulator;
+		$this->evidence  = $evidence;
 	}
 
 	/**
@@ -461,6 +481,202 @@ final class Command {
 		}
 
 		self::format( $assoc_args, $rows, array( 'session', 'agent', 'first', 'last', 'calls', 'writes', 'rolled_back' ) );
+	}
+
+	/**
+	 * Tries a policy on the calls agents made in the last days.
+	 *
+	 * Decides each logged call again with the code live calls use, under the live
+	 * policy and under the one you give, and says per agent how many calls would
+	 * be allowed, held for approval, refused or rate limited. Nothing is saved
+	 * and no call is run.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--policy=<file>]
+	 * : A JSON file with the draft: "rules" (a list of scope, subject, pattern and action), "defaults" (readonly, write and destructive) and "rate_limit". Anything left out keeps its live value.
+	 *
+	 * [--without-rule=<id>]
+	 * : Try the live policy without this rule (see `wp agent-governance rules`), instead of a file.
+	 *
+	 * [--days=<days>]
+	 * : Days of history. The log only goes back as far as its retention setting.
+	 * ---
+	 * default: 30
+	 * ---
+	 *
+	 * [--format=<format>]
+	 * : Output format. json and yaml print the whole result, with example calls.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - csv
+	 *   - json
+	 *   - yaml
+	 *   - count
+	 * ---
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp agent-governance simulate --policy=tighter.json --days=14
+	 *     wp agent-governance simulate --without-rule=3fa9c1d2 --format=json
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Options.
+	 */
+	public function simulate( $args, $assoc_args ): void {
+		$live  = $this->simulator->live();
+		$input = array();
+
+		if ( isset( $assoc_args['policy'] ) ) {
+			$path = (string) $assoc_args['policy'];
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents, WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown -- A local file named on the command line.
+			$json = is_readable( $path ) ? file_get_contents( $path ) : false;
+			$data = false !== $json ? json_decode( $json, true ) : null;
+			if ( ! is_array( $data ) ) {
+				\WP_CLI::error( 'The policy file could not be read as JSON.' );
+			}
+			$input = $data;
+		} elseif ( ! isset( $assoc_args['without-rule'] ) ) {
+			\WP_CLI::error( 'Give a draft with --policy=<file>, or try removing a rule with --without-rule=<id>.' );
+		}
+
+		$draft = $this->simulator->draft( $input );
+		if ( isset( $assoc_args['without-rule'] ) ) {
+			$id = (string) $assoc_args['without-rule'];
+			if ( ! in_array( $id, array_column( $live['rules'], 'id' ), true ) ) {
+				\WP_CLI::error( sprintf( 'No rule with ID %s. See `wp agent-governance rules`.', $id ) );
+			}
+			$draft['rules'] = array_values(
+				array_filter(
+					$draft['rules'],
+					static function ( array $rule ) use ( $id ): bool {
+						return $rule['id'] !== $id;
+					}
+				)
+			);
+		}
+
+		$result  = $this->simulator->run(
+			array(
+				'live'  => $live,
+				'draft' => $draft,
+			),
+			(int) ( $assoc_args['days'] ?? 0 )
+		);
+		$summary = Simulator::summary( $result );
+		$format  = (string) ( $assoc_args['format'] ?? 'table' );
+
+		if ( in_array( $format, array( 'json', 'yaml' ), true ) ) {
+			\WP_CLI::print_value( $summary, array( 'format' => $format ) );
+			return;
+		}
+
+		$cell = static function ( array $agent, string $outcome ): string {
+			$now  = (int) ( $agent['baseline'][ $outcome ] ?? 0 );
+			$then = (int) ( $agent['policy'][ $outcome ] ?? 0 );
+
+			return $now === $then ? (string) $then : $now . ' -> ' . $then;
+		};
+
+		$rows = array();
+		foreach ( $summary['agents'] as $agent ) {
+			$rows[] = array(
+				'agent'        => $agent['label'],
+				'calls'        => $agent['calls'],
+				'allowed'      => $cell( $agent, 'allow' ),
+				'held'         => $cell( $agent, 'require_approval' ),
+				'refused'      => $cell( $agent, 'deny' ),
+				'rate_limited' => $cell( $agent, 'rate_limit' ),
+			);
+		}
+
+		if ( 'table' === $format ) {
+			\WP_CLI::log( sprintf( 'Replayed %d calls from the last %d days. Nothing was saved. Numbers read "live -> with this policy".', $summary['calls'], $summary['days'] ) );
+			if ( $summary['truncated'] ) {
+				\WP_CLI::warning( 'The log has more calls in this window than one replay reads. Only the newest are included.' );
+			}
+			if ( $summary['partial'] ) {
+				\WP_CLI::warning( 'The replay stopped early. Try fewer days.' );
+			}
+		}
+
+		self::format( $assoc_args, $rows, array( 'agent', 'calls', 'allowed', 'held', 'refused', 'rate_limited' ) );
+
+		if ( 'table' === $format ) {
+			foreach ( $summary['changes'] as $change ) {
+				\WP_CLI::log( $change['summary'] );
+			}
+			if ( ! $summary['changes'] && $summary['calls'] ) {
+				\WP_CLI::success( 'This policy would not have changed what happened to any of these calls.' );
+			}
+		}
+	}
+
+	/**
+	 * Writes a signed JSON evidence file for a session.
+	 *
+	 * The file lists the session's calls, what was decided for each, who approved
+	 * and how long it took, and carries a signature only this site can make.
+	 * Inputs and results are not in it.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <session>
+	 * : Session ID, from `wp agent-governance sessions`.
+	 *
+	 * [--file=<file>]
+	 * : Write the file here instead of printing it.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp agent-governance evidence app:6f0c2f8e@20261112T091500 --file=evidence.json
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Options.
+	 */
+	public function evidence( $args, $assoc_args ): void {
+		$file = $this->evidence->export( (string) $args[0] );
+		if ( ! $file ) {
+			\WP_CLI::error( 'No calls in that session.' );
+		}
+
+		$text = Evidence::encode( $file );
+		if ( isset( $assoc_args['file'] ) ) {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_file_put_contents -- A local file named on the command line.
+			if ( false === file_put_contents( (string) $assoc_args['file'], $text . "\n" ) ) {
+				\WP_CLI::error( 'The file could not be written.' );
+			}
+			\WP_CLI::success( sprintf( 'Wrote %d calls to %s.', count( $file['payload']['calls'] ), $assoc_args['file'] ) );
+			return;
+		}
+
+		\WP_CLI::line( $text );
+	}
+
+	/**
+	 * Checks that an evidence file was signed by this site and did not change.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <file>
+	 * : The JSON file from `wp agent-governance evidence`.
+	 *
+	 * @subcommand verify-evidence
+	 *
+	 * @param array $args Positional arguments.
+	 */
+	public function verify_evidence( $args ): void {
+		$path = (string) $args[0];
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents, WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown -- A local file named on the command line.
+		$json = is_readable( $path ) ? file_get_contents( $path ) : false;
+
+		if ( false === $json || ! Evidence::verify( json_decode( $json, true ) ) ) {
+			\WP_CLI::error( 'The signature does not match. The file was changed, or another site signed it.' );
+		}
+
+		\WP_CLI::success( 'The signature matches. This site signed the file and it did not change.' );
 	}
 
 	/**
