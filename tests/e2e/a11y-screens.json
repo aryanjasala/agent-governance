@@ -44,6 +44,32 @@
       "cleanup": [{ "js": "seed.js", "call": "unseedActivity" }]
     },
     {
+      "name": "Get started card on a first visit",
+      "setup": [{ "js": "seed.js", "call": "clearGovernance" }],
+      "url": "/wp-admin/tools.php?page=agent-governance",
+      "steps": [{ "waitFor": ".agg-steps" }]
+    },
+    {
+      "name": "Policies, empty rules and the try controls",
+      "setup": [{ "js": "seed.js", "call": "clearGovernance" }],
+      "url": "/wp-admin/tools.php?page=agent-governance&tab=policies",
+      "steps": [{ "waitFor": ".agg-try" }]
+    },
+    {
+      "name": "Result of trying a policy",
+      "setup": [{ "js": "seed.js", "call": "seedActivity", "save": "seeded" }],
+      "url": "/wp-admin/tools.php?page=agent-governance&tab=policies",
+      "steps": [{ "click": "role=button[name=\"Try this policy\"]" }, { "waitFor": ".agg-try-result" }],
+      "cleanup": [{ "js": "seed.js", "call": "unseedActivity" }]
+    },
+    {
+      "name": "In-place confirmation before approving",
+      "setup": [{ "js": "seed.js", "call": "seedActivity", "save": "seeded" }],
+      "url": "/wp-admin/tools.php?page=agent-governance&tab=requests&request={seeded.pageRequest}",
+      "steps": [{ "click": "role=button[name=\"Approve and run\"]" }, { "waitFor": ".axle-confirm" }],
+      "cleanup": [{ "js": "seed.js", "call": "unseedActivity" }]
+    },
+    {
       "name": "Dashboard notice about requests waiting",
       "setup": [{ "js": "seed.js", "call": "seedActivity", "save": "seeded" }],
       "url": "/wp-admin/index.php",

@@ -35,7 +35,7 @@ The policy engine decides each call in this order:
 
 `agent_governance_policy` then has the last word on every call, except that it cannot let a write through while agents are paused.
 
-A call another plugin refuses before Agent Governance sees it, such as a write Axle Read-Only Mode stops during a freeze, is still logged, as **refused** with the other plugin's error code. So is an allowed call that another plugin refuses from inside with one of the codes in `agent_governance_refusal_codes`.
+A call another plugin refuses before Agent Governance sees it, such as a write Site Read-Only Mode stops during a freeze, is still logged, as **refused** with the other plugin's error code. So is an allowed call that another plugin refuses from inside with one of the codes in `agent_governance_refusal_codes`.
 
 ### Rules
 
@@ -138,6 +138,21 @@ While an agent call runs, every post it changes is recorded against the call:
 | `agent_governance_policy` | filter | `( array $decision, array $call, array $identity )`. The final decision: `action` (`allow`, `deny`, `require_approval`), `reason`, `rule`. Invalid actions are ignored, and a pause still refuses writes |
 | `agent_governance_default_rules` | filter | `( array $defaults )`. Action per kind: `readonly`, `write`, `destructive`. Invalid values keep the setting |
 | `agent_governance_rules` | filter | `( array[] $rules )`. Add rules in code: `scope`, `subject`, `pattern`, `action`. Invalid rules are dropped |
+| `agent_governance_simulation_days` | filter | `( int $days )`. Days of history a simulation replays. Default 30, 1 to 365 |
+| `agent_governance_simulation_max_calls` | filter | `( int $calls )`. Most logged calls one replay reads, the newest kept. Default 20000, 100 to 200000 |
+| `agent_governance_simulation_examples` | filter | `( int $examples )`. Example calls kept per agent and kind of change. Default 3, 0 to 10 |
+| `agent_governance_simulation_seconds` | filter | `( int $seconds )`. Seconds a replay may run before it stops with a partial result. Default 20 |
+| `agent_governance_policy_simulated` | action | `( array $result, array $policies, int $days )`. After a replay. Nothing was changed |
+| `agent_governance_suggestion_threshold` | filter | `( int $times )`. Approvals, with no rejection, before an allow rule is suggested. Default 5, at least 2 |
+| `agent_governance_suggestions_limit` | filter | `( int $limit )`. Suggestions shown at once. Default 3 |
+| `agent_governance_suggestions` | filter | `( array[] $suggestions )`. The suggested rules: `key`, `identity`, `agent`, `pattern`, `approved`, `rule` |
+| `agent_governance_suggestion_accepted` | action | `( array $rule, array $suggestion, int $user_id )`. Someone accepted a suggested rule |
+| `agent_governance_suggestion_dismissed` | action | `( string $key, int $user_id )`. Someone hid a suggestion |
+| `agent_governance_can_review_request` | filter | `( bool $allowed, array $request, int $user_id )`. Whether a user may see what a request touches and decide it |
+| `agent_governance_show_admin_bar` | filter | `( bool $show )`. Whether approvers see the waiting count in the admin bar. Default true |
+| `agent_governance_evidence` | filter | `( array $payload, string $session )`. The evidence file before it is signed |
+| `agent_governance_evidence_key` | filter | `( string $key )`. The key evidence is signed with. Default derived from the authentication salt |
+| `agent_governance_evidence_exported` | action | `( string $session, int $calls )`. After an evidence file was made |
 | `agent_governance_approver_capability` | filter | `( string $capability )`. Who may approve, reject, roll back and see the log. Default `agent_governance_approve` |
 | `agent_governance_approver_roles` | filter | `( string[] $roles )`. Roles given the approver capability on activation and by the "Give it back" button. Default `administrator` |
 | `agent_governance_fallback_capability` | filter | `( string $capability )`. Who approves while no role has the approver capability. Default `manage_options`. An empty value keeps the default |
@@ -161,7 +176,7 @@ While an agent call runs, every post it changes is recorded against the call:
 | `agent_governance_menu_title` | filter | `( string $title )`. The menu label under Tools. Default "AI Agents", short enough to fit on one line with the count. An empty value keeps the default |
 | `agent_governance_via_labels` | filter | `( array $labels )`. How a call came in, as shown on the screens: `app-password` => "Application password", `mcp` => "MCP", `custom` => "Custom code" |
 | `agent_governance_result_labels` | filter | `( array $labels )`. Result codes in words on the Activity tab, such as `agent_governance_pending` => "Waiting for approval". Other codes show as they are |
-| `agent_governance_refusal_codes` | filter | `( string[] $codes )`. Error codes that mean another plugin refused an allowed call from inside it, so it is logged as refused. Default `axle_read_only_mode` and `site_read_only_mode` (Read-Only Mode before 3.0) |
+| `agent_governance_refusal_codes` | filter | `( string[] $codes )`. Error codes that mean another plugin refused an allowed call from inside it, so it is logged as refused. Default `site_read_only_mode` |
 | `agent_governance_dispatch_abilities` | filter | `( string[] $abilities )`. Abilities that only run other abilities. Default `mcp-adapter/execute-ability` |
 | `agent_governance_passthrough_routes` | filter | `( string[] $routes )`. REST routes the REST check leaves to what runs inside them. Default the agent routes, `/wp-abilities/v1/` and `/batch/v1` |
 | `agent_governance_untracked_post_types` | filter | `( string[] $types )`. Post types sessions do not record. Default `revision`, `customize_changeset`, `oembed_cache`, `user_request` |
@@ -169,7 +184,7 @@ While an agent call runs, every post it changes is recorded against the call:
 | `agent_governance_undo_url` | filter | `( string $url )`. Where to undo changes a rollback cannot. Default Activity Log with Undo's screen when it is active |
 | `agent_governance_call_logged` | action | `( array $row )`. An agent call was written to the log |
 | `agent_governance_call_denied` | action | `( array $call, array $identity, array $decision )`. A call was refused by a rule, the pause or the rate limit |
-| `agent_governance_call_refused` | action | `( array $call, array $identity, WP_Error $error )`. Another plugin refused an agent call before it ran, such as Axle Read-Only Mode during a freeze |
+| `agent_governance_call_refused` | action | `( array $call, array $identity, WP_Error $error )`. Another plugin refused an agent call before it ran, such as Site Read-Only Mode during a freeze |
 | `agent_governance_request_held` | action | `( array $request, array $call, array $decision )`. A call was held for approval |
 | `agent_governance_request_approved` | action | `( array $request, int $approver_id )`. Before an approved call runs |
 | `agent_governance_request_rejected` | action | `( array $request, int $approver_id, string $reason )`. A held call was rejected |
@@ -234,6 +249,8 @@ On WordPress 6.9 and later, Agent Governance registers [abilities](https://devel
 | `agent-governance/list-my-requests` | Read-only. The calling agent's held requests (its application password, or else its user), newest first. `status`, `limit` | any signed-in user |
 | `agent-governance/list-pending` | Read-only. Requests waiting for a decision. `limit` | an approver |
 | `agent-governance/decide-request` | Destructive. `id`, `decision` (`approve` or `reject`), `reason`. Refused through application passwords and MCP | an approver signed in as themselves |
+| `agent-governance/simulate-policy` | Read-only. Replays the log against a draft: `days`, `rules`, `defaults`, `rate_limit`, `without_rule`. Per agent: counts, changes and example calls. Saves nothing | someone who may change policies |
+| `agent-governance/export-session-evidence` | Read-only. The signed evidence file of a session by `session` | an approver |
 
 Run them over REST with `GET .../get-request/run?input[id]=12` and `POST .../decide-request/run` with `{ "input": { "id": 12, "decision": "reject", "reason": "Not this page." } }`.
 
@@ -253,12 +270,40 @@ wp agent-governance status [--format=<format>]
 wp agent-governance rules [--format=<format>]
 wp agent-governance add-rule <pattern> <allow|deny|require_approval> [--scope=default|agent|user|role] [--subject=<subject>]
 wp agent-governance delete-rule <id>
+wp agent-governance simulate [--policy=<file>] [--without-rule=<id>] [--days=<n>] [--format=<format>]   # try a draft on past calls, saves nothing
+wp agent-governance evidence <session> [--file=<file>]   # signed JSON evidence for a session
+wp agent-governance verify-evidence <file>               # check the signature
 wp agent-governance settings [--rate-limit=<n>] [--retention-days=<n>] [--email=on|off] [--notice=on|off] [--readonly=<action>] [--write=<action>] [--destructive=<action>]
 wp agent-governance cleanup                           # expire overdue requests and purge old log rows now
 wp agent-governance restore-capability                # give the approver capability back to Administrator
 ```
 
 `<agent>` is an application password UUID, `app:<uuid>`, `user:<id>` or a user login. `--since` takes anything `strtotime()` reads, such as `"2 hours ago"`, and defaults to the start of the agent's latest session.
+
+## Trying a policy
+
+On the **Policies** tab, **Try this policy** replays the calls in the audit log (30 days by default, at most 20,000 calls, the newest if there are more) against the rules, defaults and rate limit as they are in the form, and against the policies live today. It shows per agent how many calls would be allowed, held for approval, refused or rate limited, which of them change ("14 calls that ran would have waited for approval") and example calls behind each change. Nothing is saved and no call is run. The form keeps the draft, so **Save policies** saves exactly what was tried.
+
+The replay calls `Policy::resolve()`, the same function live calls use, so the two cannot drift apart. The rate limit is counted over the replayed calls, one minute at a time. The replay leaves out the pause, and anything the `agent_governance_policy` filter decides in code. Rules defined in code with `agent_governance_rules` stay in the draft. Calls that ran after approval, calls another plugin refused and this plugin's own abilities are not replayed.
+
+```sh
+wp agent-governance simulate --policy=tighter.json --days=14
+wp agent-governance simulate --without-rule=3fa9c1d2 --format=json
+```
+
+The policy file is JSON with `rules`, `defaults` and `rate_limit`. Anything left out keeps its live value. The same replay is the read-only ability `agent-governance/simulate-policy`, for people who may change policies.
+
+### Suggested rules
+
+When the same agent's same kind of call (an ability name, or a REST method and route with ID segments turned into `*`) has been approved 5 times in the last 30 days and never rejected, and it still waits for approval, the **Requests** tab suggests an allow rule for that agent. The card shows the replay of the rule over the same days. **Always allow it** adds the rule as the first rule and shows an **Undo** link. **Not now** hides the suggestion for you. Suggestions are only shown to people who may change policies, and nothing is applied by itself.
+
+## Who may decide a request
+
+The approver capability opens the queue. Seeing a preview, an input or a result, and approving or rejecting, also needs access to what the call touches: `edit_post` for the post, `edit_term` for the term, `edit_user` for the user, `manage_options` for settings, `activate_plugins` or `delete_plugins` for plugins, `create_users` and the post type's `create_posts` for new items. An approver without it sees a notice instead, is not emailed the summary, and `get-request`, `list-pending` and `decide-request` leave the request out or refuse it with `agent_governance_forbidden`. Rolling back a session works the same way: posts the person may not edit are left alone and the session stays open. WP-CLI, which has no signed-in person, is trusted. `agent_governance_can_review_request` adds checks for the objects of your own abilities.
+
+## Evidence
+
+On a session's review screen, **Download signed evidence** gives a JSON file: the calls, what was decided for each, who approved, how long it took and when it was rolled back. Inputs and results are left out. The file carries an HMAC-SHA256 made with a key only this site has (`agent_governance_evidence_key` changes it), so `wp agent-governance verify-evidence <file>` can say whether the file changed. The ability `agent-governance/export-session-evidence` returns the same file.
 
 ## Data
 

@@ -1,5 +1,5 @@
 const { execFileSync } = require( 'child_process' );
-const { test, expect, wp, wpEval, appPasswordClient } = require( './utils' );
+const { test, expect, wp, wpEval, appPasswordClient, logInAs } = require( './utils' );
 const { COMPOSE_DIR } = require( './utils/config' );
 
 const SCREEN = '/wp-admin/tools.php?page=agent-governance';
@@ -150,8 +150,8 @@ test.describe( 'Agent Governance', () => {
 		await expect( page.locator( '.agg-diff' ) ).toContainText( 'trash' );
 		await expect( page.locator( '.agg-json' ).first() ).toContainText( `"id": ${ id }` );
 
-		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await page.getByRole( 'button', { name: 'Approve and run' } ).click();
+		await page.locator( '.axle-confirm' ).getByRole( 'button', { name: 'Approve and run' } ).click();
 		await expect( page.locator( '.notice-success' ) ).toContainText( 'Approved. The call ran.' );
 		await expect( page.locator( '.agg-request-title .agg-badge' ) ).toHaveText( 'Executed' );
 		await expect( page.locator( '.agg-facts' ) ).toContainText( 'Application password' );
@@ -187,8 +187,8 @@ test.describe( 'Agent Governance', () => {
 		await page.goto( `${ SCREEN }&tab=requests&request=${ requestId }` );
 		await expect( page.locator( '.agg-summary' ) ).toHaveText( 'Moves the Post "Keep me" to the trash.' );
 		await page.locator( '#agg-reason' ).fill( 'This page is still linked from the menu.' );
-		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await page.getByRole( 'button', { name: 'Reject' } ).click();
+		await page.locator( '.axle-confirm' ).getByRole( 'button', { name: 'Reject' } ).click();
 		await expect( page.locator( '.notice-success' ) ).toContainText( 'Rejected.' );
 
 		expect( one( `SELECT status FROM wp_agent_governance_requests WHERE id = ${ requestId }` ) ).toBe( 'rejected' );
@@ -239,8 +239,8 @@ test.describe( 'Agent Governance', () => {
 		const id = newPost( 'Paused post' );
 
 		await page.goto( SCREEN );
-		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await page.getByRole( 'button', { name: 'Pause agent writes' } ).click();
+		await page.locator( '.axle-confirm' ).getByRole( 'button', { name: 'Pause agent writes' } ).click();
 		await expect( page.locator( '.agg-paused' ) ).toContainText( 'Agent writes are paused.' );
 		expect( option( 'agent_governance_settings' ).paused ).toBe( true );
 
@@ -297,8 +297,8 @@ test.describe( 'Agent Governance', () => {
 		await expect( plan ).toContainText( 'Created by the agent. Moves to the trash.' );
 		await expect( plan.locator( '.agg-other' ) ).toContainText( '/wp/v2/settings' );
 
-		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await page.getByRole( 'button', { name: 'Roll back session' } ).click();
+		await page.locator( '.axle-confirm' ).getByRole( 'button', { name: 'Roll back session' } ).click();
 		await expect( page.locator( '.notice-success' ) ).toContainText( 'Restored 1, moved to the trash 1, failed 0.' );
 
 		expect( post( id, 'post_title' ) ).toBe( 'Original title' );
@@ -370,8 +370,8 @@ test.describe( 'Agent Governance', () => {
 		await expect( page.locator( '.agg-no-approver' ) ).toContainText( 'No role has the agent_governance_approve capability' );
 		expect( JSON.parse( wpEval( 'echo wp_json_encode( ( new AryanX\\Axle\\AgentGovernance\\Health\\SiteHealth( new AryanX\\Axle\\AgentGovernance\\Settings(), new AryanX\\Axle\\AgentGovernance\\Requests() ) )->run() );' ) ).status ).toBe( 'critical' );
 
-		page.once( 'dialog', ( dialog ) => dialog.accept() );
 		await page.getByRole( 'button', { name: 'Approve and run' } ).click();
+		await page.locator( '.axle-confirm' ).getByRole( 'button', { name: 'Approve and run' } ).click();
 		await expect( page.locator( '.notice-success' ) ).toContainText( 'Approved. The call ran.' );
 		expect( post( id, 'post_status' ) ).toBe( 'trash' );
 
@@ -431,14 +431,148 @@ test.describe( 'Agent Governance', () => {
 		expect( await page.evaluate( () => window.aggRuleAdded ) ).toBe( '1' );
 		await expect( page.locator( '.agg-rule' ) ).toHaveCount( 2 );
 
-		let asked = '';
-		page.once( 'dialog', ( dialog ) => {
-			asked = dialog.message();
-			dialog.dismiss();
-		} );
 		await page.getByRole( 'button', { name: 'Pause agent writes' } ).click();
-		await expect.poll( () => asked ).toBe( 'pause: are you sure?' );
+		await expect( page.locator( '.axle-confirm' ) ).toContainText( 'pause: are you sure?' );
+		await page.locator( '.axle-confirm' ).getByRole( 'button', { name: 'Cancel' } ).click();
+		await expect( page.locator( '.axle-confirm' ) ).toHaveCount( 0 );
+		await expect( page.getByRole( 'button', { name: 'Pause agent writes' } ) ).toBeFocused();
 		expect( option( 'agent_governance_settings' ).paused ).toBe( false );
+	} );
+
+	test( 'Try this policy replays past calls, shows what would change and saves nothing', async ( { page } ) => {
+		const bot = await agent( 'sim-bot' );
+		const id = newPost( 'Replay me' );
+		for ( let i = 0; i < 3; i++ ) {
+			expect( ( await bot.ability( 'agg-fixture/rename-post', { id, title: `Replay ${ i }` } ) ).status ).toBe( 200 );
+		}
+
+		await page.goto( `${ SCREEN }&tab=policies` );
+		const row = page.locator( '.agg-rule' ).last();
+		await row.locator( 'select[name$="[scope]"]' ).selectOption( 'default' );
+		await row.locator( 'input[name$="[pattern]"]' ).fill( 'agg-fixture/rename-*' );
+		await row.locator( 'select[name$="[action]"]' ).selectOption( 'require_approval' );
+		await page.getByRole( 'button', { name: 'Try this policy' } ).click();
+
+		const result = page.locator( '#agg-try-result' );
+		await expect( result ).toContainText( 'Nothing was saved.' );
+		await expect( result ).toContainText( 'calls that ran would have waited for approval.' );
+		await expect( result.locator( '.agg-try-table' ) ).toContainText( 'sim-bot' );
+		await expect( result.locator( '.agg-try-examples' ).first() ).toContainText( 'agg-fixture/rename-post' );
+		// The form keeps the draft, so Save policies would save exactly what was tried.
+		await expect( page.locator( '.agg-rule' ).first().locator( 'input[name$="[pattern]"]' ) ).toHaveValue( 'agg-fixture/rename-*' );
+		expect( option( 'agent_governance_rules' ) ).toBeNull();
+
+		await bot.context.dispose();
+	} );
+
+	test( 'WP-CLI and the ability replay a policy against the log', async () => {
+		const bot = await agent( 'sim-cli-bot' );
+		const id = newPost( 'Replay CLI' );
+		wp( 'agent-governance', 'add-rule', 'agg-fixture/rename-*', 'deny', '--scope=agent', `--subject=${ bot.uuid }` );
+		const ruleId = JSON.parse( wp( 'agent-governance', 'rules', '--format=json' ) )[ 0 ].id;
+		expect( ( await bot.ability( 'agg-fixture/rename-post', { id, title: 'Nope' } ) ).status ).toBe( 403 );
+
+		const cli = JSON.parse( wp( 'agent-governance', 'simulate', `--without-rule=${ ruleId }`, '--days=7', '--format=json' ) );
+		const agentRow = cli.agents.find( ( a ) => a.identity === bot.identity );
+		expect( agentRow.changes[ 0 ] ).toMatchObject( { from: 'deny', to: 'allow', count: 1 } );
+		expect( agentRow.changes[ 0 ].examples[ 0 ].call ).toContain( 'agg-fixture/rename-post' );
+		expect( option( 'agent_governance_rules' ) ).toHaveLength( 1 );
+
+		const viaAbility = await bot.ability( 'agent-governance/simulate-policy', { days: 7, rules: [] }, 'GET' );
+		expect( viaAbility.status ).toBe( 200 );
+		expect( viaAbility.body.changes.some( ( c ) => 'deny' === c.from && 'allow' === c.to ) ).toBe( true );
+		await bot.context.dispose();
+	} );
+
+	test( 'five approvals suggest an allow rule, accepted with a notice that can undo it', async ( { page } ) => {
+		const bot = await agent( 'suggest-bot' );
+		for ( let i = 0; i < 5; i++ ) {
+			const id = newPost( `Suggest ${ i }` );
+			const held = await bot.ability( 'agg-fixture/trash-post', { id } );
+			wp( 'agent-governance', 'approve', String( held.body.data.request_id ), '--user=admin' );
+		}
+		const id = newPost( 'Suggest last' );
+		await bot.ability( 'agg-fixture/trash-post', { id } );
+
+		await page.goto( SCREEN );
+		const card = page.locator( '.agg-suggestion', { hasText: 'suggest-bot' } );
+		await expect( card ).toContainText( 'You approved' );
+		await expect( card ).toContainText( 'agg-fixture/trash-post' );
+		await expect( card ).toContainText( 'held calls run at once' );
+		expect( option( 'agent_governance_rules' ) ).toBeNull();
+
+		await card.getByRole( 'button', { name: 'Always allow it' } ).click();
+		await expect( page.locator( '.notice-success' ) ).toContainText( 'Rule added.' );
+		expect( option( 'agent_governance_rules' )[ 0 ] ).toMatchObject( { scope: 'agent', subject: bot.uuid, pattern: 'agg-fixture/trash-post', action: 'allow' } );
+		const next = newPost( 'Runs now' );
+		expect( ( await bot.ability( 'agg-fixture/trash-post', { id: next } ) ).status ).toBe( 200 );
+
+		await page.locator( '.notice-success' ).getByRole( 'link', { name: 'Undo' } ).click();
+		await expect( page.locator( '.notice-success' ) ).toContainText( 'Rule removed.' );
+		expect( option( 'agent_governance_rules' ) ).toEqual( [] );
+		await bot.context.dispose();
+	} );
+
+	test( 'an approver who cannot edit the post sees no preview and cannot decide', async ( { browser } ) => {
+		succeeds( 'user', 'create', 'checker', 'checker@example.com', '--role=editor', '--user_pass=checker-pass-123' );
+		wp( 'cap', 'add', 'editor', 'agent_governance_approve' );
+		try {
+			const bot = await agent( 'object-bot' );
+			const id = newPost( 'Admin only post' );
+			const held = await bot.call( 'DELETE', `/wp/v2/posts/${ id }` );
+			expect( held.status ).toBe( 202 );
+			const requestId = held.body.data.request_id;
+
+			const { context, page } = await logInAs( browser, 'checker', 'checker-pass-123' );
+			await page.goto( `${ SCREEN }&tab=requests&request=${ requestId }` );
+			await expect( page.locator( '.agg-no-access' ) ).toContainText( 'not allowed to open' );
+			await expect( page.locator( '.agg-preview' ) ).toHaveCount( 0 );
+			await expect( page.locator( '.agg-decide' ) ).toHaveCount( 0 );
+			await expect( page.locator( 'body' ) ).not.toContainText( 'Admin only post' );
+			await context.close();
+
+			expect( one( `SELECT status FROM wp_agent_governance_requests WHERE id = ${ requestId }` ) ).toBe( 'pending' );
+			await bot.context.dispose();
+		} finally {
+			succeeds( 'cap', 'remove', 'editor', 'agent_governance_approve' );
+			succeeds( 'user', 'delete', 'checker', '--yes' );
+		}
+	} );
+
+	test( 'a session downloads as signed evidence that fails once edited', async ( { page } ) => {
+		const bot = await agent( 'evidence-bot' );
+		const id = newPost( 'Evidence post' );
+		const held = await bot.ability( 'agg-fixture/trash-post', { id } );
+		wp( 'agent-governance', 'approve', String( held.body.data.request_id ), '--user=admin' );
+		const session = one( `SELECT session FROM wp_agent_governance_log WHERE identity = '${ bot.identity }' ORDER BY id DESC LIMIT 1` );
+
+		const text = wp( 'agent-governance', 'evidence', session );
+		const file = JSON.parse( text );
+		expect( file.payload.calls.some( ( c ) => c.request && 'admin' === c.request.approver ) ).toBe( true );
+		const check = ( data ) => wpEval( `echo AryanX\\Axle\\AgentGovernance\\Evidence::verify( json_decode( base64_decode( '${ Buffer.from( JSON.stringify( data ) ).toString( 'base64' ) }' ), true ) ) ? 'ok' : 'bad';` );
+		expect( check( file ) ).toBe( 'ok' );
+		file.payload.calls[ 0 ].decision = 'allowed-but-edited';
+		expect( check( file ) ).toBe( 'bad' );
+
+		await page.goto( `${ SCREEN }&tab=sessions&session=${ encodeURIComponent( session ) }` );
+		const [ download ] = await Promise.all( [ page.waitForEvent( 'download' ), page.getByRole( 'button', { name: 'Download signed evidence' } ).click() ] );
+		expect( download.suggestedFilename() ).toMatch( /^agent-session-evidence-.*\.json$/ );
+		await bot.context.dispose();
+	} );
+
+	test( 'the admin bar and tab title count waiting requests, and the plugin row links to the screen', async ( { page } ) => {
+		const bot = await agent( 'bar-bot' );
+		await bot.ability( 'agg-fixture/trash-post', { id: newPost( 'Bar post' ) } );
+
+		await page.goto( '/wp-admin/index.php' );
+		await expect( page.locator( '#wp-admin-bar-agent-governance' ) ).toContainText( 'waiting' );
+		await page.goto( SCREEN );
+		await expect.poll( () => page.title() ).toMatch( /^\(\d+\) / );
+
+		await page.goto( '/wp-admin/plugins.php' );
+		await expect( page.locator( 'tr[data-slug="agent-governance"] .row-actions, tr[data-slug="agent-governance"] .plugin-title ~ *' ).first() ).toBeVisible();
+		await expect( page.locator( 'tr[data-slug="agent-governance"] a[href*="page=agent-governance"]' ).first() ).toBeVisible();
+		await bot.context.dispose();
 	} );
 
 	test( 'WP-CLI lists, shows, rejects, approves and expires held requests', async () => {
