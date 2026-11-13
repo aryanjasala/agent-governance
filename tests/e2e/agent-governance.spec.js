@@ -478,7 +478,7 @@ test.describe( 'Agent Governance', () => {
 		expect( agentRow.changes[ 0 ].examples[ 0 ].call ).toContain( 'agg-fixture/rename-post' );
 		expect( option( 'agent_governance_rules' ) ).toHaveLength( 1 );
 
-		const viaAbility = await bot.ability( 'agent-governance/simulate-policy', { days: 7, rules: [] }, 'GET' );
+		const viaAbility = await bot.ability( 'agent-governance/simulate-policy', { days: 7, without_rule: ruleId }, 'GET' );
 		expect( viaAbility.status ).toBe( 200 );
 		expect( viaAbility.body.changes.some( ( c ) => 'deny' === c.from && 'allow' === c.to ) ).toBe( true );
 		await bot.context.dispose();
