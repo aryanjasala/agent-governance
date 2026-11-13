@@ -10,6 +10,7 @@ namespace AryanX\Axle\AgentGovernance\Health;
 use AryanX\Axle\AgentGovernance\Admin\Page;
 use AryanX\Axle\AgentGovernance\Capability;
 use AryanX\Axle\AgentGovernance\Notifier;
+use AryanX\Axle\AgentGovernance\Webhook;
 use AryanX\Axle\AgentGovernance\Requests;
 use AryanX\Axle\AgentGovernance\Schema;
 use AryanX\Axle\AgentGovernance\Service;
@@ -125,6 +126,20 @@ final class SiteHealth implements Service {
 				__( 'Agent calls are waiting for approval', 'agent-governance' ),
 				/* translators: %s: time span. */
 				sprintf( __( 'An agent call has waited %s for someone to approve or reject it. Agents keep waiting until it is decided or expires.', 'agent-governance' ), human_time_diff( $oldest, time() ) ),
+				$actions
+			);
+		}
+
+		$webhook = Webhook::status();
+		if ( $webhook && ! $webhook['ok'] && '' !== (string) $this->settings->get( 'webhook_url' ) ) {
+			return self::result(
+				'recommended',
+				__( 'The approval webhook is failing', 'agent-governance' ),
+				sprintf(
+					/* translators: %s: the reason, such as "The receiver answered HTTP 404." */
+					__( 'The last message to the approval webhook was not delivered. %s Approvers still get email. Check the address on the Policies screen and send a test.', 'agent-governance' ),
+					$webhook['message']
+				),
 				$actions
 			);
 		}

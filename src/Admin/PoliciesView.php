@@ -10,6 +10,7 @@ namespace AryanX\Axle\AgentGovernance\Admin;
 use AryanX\Axle\AgentGovernance\Log;
 use AryanX\Axle\AgentGovernance\Settings;
 use AryanX\Axle\AgentGovernance\Simulator;
+use AryanX\Axle\AgentGovernance\Webhook;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -76,6 +77,8 @@ final class PoliciesView {
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="agg-policies">';
 		echo '<input type="hidden" name="action" value="agent_governance_policies">';
 		wp_nonce_field( 'agent_governance_policies' );
+		// Enter in a field saves. Without this the first button, "send a test", would take it.
+		echo '<button type="submit" class="hidden" tabindex="-1" aria-hidden="true">' . esc_html__( 'Save policies', 'agent-governance' ) . '</button>';
 
 		echo '<section class="axle-card"><h2 class="axle-card__title">' . esc_html__( 'Rules', 'agent-governance' ) . '</h2>';
 		echo '<p class="description">' . esc_html__( 'The first matching rule wins, checking rules for the agent first, then its user, then its role, then every agent. Patterns match ability names or REST routes: * matches anything. Start a pattern with a method to match only REST calls with it, such as "DELETE /wp/v2/*".', 'agent-governance' ) . '</p>';
@@ -135,6 +138,7 @@ final class PoliciesView {
 			checked( $settings['notice'], true, false ),
 			esc_html__( 'Show a notice in wp-admin while calls wait', 'agent-governance' )
 		);
+		$this->render_delivery( $settings );
 		printf(
 			'<tr><th scope="row"><label for="agg-retention">%1$s</label></th><td><input type="number" min="1" max="3650" id="agg-retention" name="retention_days" value="%2$d" class="small-text"> %3$s</td></tr>',
 			esc_html__( 'Keep the log', 'agent-governance' ),
@@ -149,6 +153,60 @@ final class PoliciesView {
 
 		submit_button( __( 'Save policies', 'agent-governance' ) );
 		echo '</form>';
+	}
+
+	/**
+	 * The rows for the webhook, bursts and reminders.
+	 *
+	 * @param array $settings Saved settings.
+	 */
+	private function render_delivery( array $settings ): void {
+		printf(
+			'<tr><th scope="row"><label for="agg-webhook">%1$s</label></th><td><input type="url" id="agg-webhook" name="webhook_url" value="%2$s" class="regular-text code" dir="ltr" autocomplete="off" aria-describedby="agg-webhook-help"> <select name="webhook_format" aria-label="%3$s"><option value="json"%4$s>%5$s</option><option value="slack"%6$s>%7$s</option></select> <button type="submit" name="send_test" value="1" class="button">%8$s</button><p class="description" id="agg-webhook-help">%9$s</p>%10$s</td></tr>',
+			esc_html__( 'Webhook', 'agent-governance' ),
+			esc_attr( (string) $settings['webhook_url'] ),
+			esc_attr__( 'Webhook format', 'agent-governance' ),
+			selected( 'json', $settings['webhook_format'], false ),
+			esc_html__( 'JSON', 'agent-governance' ),
+			selected( 'slack', $settings['webhook_format'], false ),
+			esc_html__( 'Slack', 'agent-governance' ),
+			esc_html__( 'Save and send a test', 'agent-governance' ),
+			esc_html__( 'Posts waiting requests, with the dry-run summary and a link, to this address. Leave it empty to turn it off. It shows details only for things you could open yourself. Deciding always happens in wp-admin, after you sign in.', 'agent-governance' ),
+			$this->webhook_status() // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in webhook_status().
+		);
+		printf(
+			'<tr><th scope="row"><label for="agg-batch">%1$s</label></th><td><input type="number" min="0" max="60" id="agg-batch" name="batch_minutes" value="%2$d" class="small-text"> %3$s<p class="description">%4$s</p></td></tr>',
+			esc_html__( 'Group a burst', 'agent-governance' ),
+			(int) $settings['batch_minutes'],
+			esc_html__( 'minutes', 'agent-governance' ),
+			esc_html__( 'The first request goes out at once. Requests that arrive within this time of the last message are sent together. 0 sends each one at once.', 'agent-governance' )
+		);
+		printf(
+			'<tr><th scope="row"><label for="agg-reminder">%1$s</label></th><td><input type="number" min="0" max="168" id="agg-reminder" name="reminder_hours" value="%2$d" class="small-text"> %3$s<p class="description">%4$s</p></td></tr>',
+			esc_html__( 'Remind approvers', 'agent-governance' ),
+			(int) $settings['reminder_hours'],
+			esc_html__( 'hours before a request expires', 'agent-governance' ),
+			esc_html__( 'Each person can turn reminders off on their own profile. 0 turns reminders off for everyone.', 'agent-governance' )
+		);
+	}
+
+	/**
+	 * How the last webhook message went.
+	 *
+	 * @return string HTML, escaped.
+	 */
+	private function webhook_status(): string {
+		$status = Webhook::status();
+		if ( ! $status ) {
+			return '';
+		}
+
+		$when = AxleUi::relative_time( $status['time'] );
+		if ( $status['ok'] ) {
+			return '<p class="description"><span class="axle-badge axle-badge--good">' . esc_html__( 'Delivered', 'agent-governance' ) . '</span> ' . $when . '</p>';
+		}
+
+		return '<p class="description"><span class="axle-badge axle-badge--bad">' . esc_html__( 'Failed', 'agent-governance' ) . '</span> ' . $when . ' ' . esc_html( $status['message'] ) . ' ' . esc_html__( 'Check the address, then send a test.', 'agent-governance' ) . '</p>';
 	}
 
 	/**

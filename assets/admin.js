@@ -218,10 +218,29 @@
 		speak( node.getAttribute( 'data-agg-speak' ) );
 	} );
 
-	// Waiting requests in the browser tab title, on the queue.
+	// Waiting requests in the browser tab title, on the queue. The heartbeat keeps it current.
 	const wrap = document.querySelector( '.agg-wrap[data-agg-pending]' );
-	const pending = wrap ? parseInt( wrap.getAttribute( 'data-agg-pending' ), 10 ) : 0;
-	if ( pending > 0 && 'requests' === wrap.getAttribute( 'data-agg-tab' ) ) {
-		document.title = '(' + pending + ') ' + document.title;
+	if ( wrap && 'requests' === wrap.getAttribute( 'data-agg-tab' ) ) {
+		const baseTitle = document.title.replace( /^\(\d+\) /, '' );
+
+		const showCount = function ( count ) {
+			count = parseInt( count, 10 ) || 0;
+			document.title = ( count > 0 ? '(' + count + ') ' : '' ) + baseTitle;
+			wrap.setAttribute( 'data-agg-pending', String( count ) );
+		};
+
+		showCount( wrap.getAttribute( 'data-agg-pending' ) );
+
+		if ( window.jQuery ) {
+			// WordPress only runs the server side when the request carries data.
+			window.jQuery( document ).on( 'heartbeat-send', function ( event, data ) {
+				data.agent_governance = 'pending';
+			} );
+			window.jQuery( document ).on( 'heartbeat-tick', function ( event, data ) {
+				if ( data && undefined !== data.agent_governance_pending ) {
+					showCount( data.agent_governance_pending );
+				}
+			} );
+		}
 	}
 }() );

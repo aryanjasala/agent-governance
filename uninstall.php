@@ -14,12 +14,17 @@ function agent_governance_uninstall_site(): void {
 	global $wpdb;
 
 	wp_clear_scheduled_hook( 'agent_governance_cleanup' );
+	wp_clear_scheduled_hook( 'agent_governance_flush_notifications' );
 	delete_option( 'agent_governance_settings' );
 	delete_option( 'agent_governance_rules' );
 	delete_option( 'agent_governance_db_version' );
+	delete_option( 'agent_governance_outbox' );
+	delete_option( 'agent_governance_last_notified' );
+	delete_option( 'agent_governance_reminded' );
+	delete_option( 'agent_governance_webhook_status' );
 	delete_transient( 'agent_governance_suggestions' );
 
-	foreach ( array( 'agent_governance_dismissed_suggestions', 'agent_governance_steps_dismissed', 'agent_governance_tried_policy' ) as $agent_governance_meta ) {
+	foreach ( array( 'agent_governance_dismissed_suggestions', 'agent_governance_steps_dismissed', 'agent_governance_tried_policy', 'agent_governance_notify' ) as $agent_governance_meta ) {
 		delete_metadata( 'user', 0, $agent_governance_meta, '', true );
 	}
 

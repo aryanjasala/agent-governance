@@ -102,6 +102,7 @@ final class CapabilityTest extends AgentTestCase {
 	public function test_deactivating_takes_the_capability_off_and_forgets_the_version(): void {
 		$this->options[ Schema::DB_VERSION_OPTION ] = Schema::DB_VERSION;
 		Functions\expect( 'wp_clear_scheduled_hook' )->once()->with( Schema::CRON_HOOK );
+		Functions\expect( 'wp_clear_scheduled_hook' )->once()->with( 'agent_governance_flush_notifications' );
 		Actions\expectDone( 'agent_governance_capability_removed' )->once()->with( array( 'administrator' ) );
 
 		Schema::deactivate();
@@ -127,7 +128,7 @@ final class CapabilityTest extends AgentTestCase {
 		Functions\expect( 'get_sites' )->twice()->andReturn( array( 1, 2 ), array() );
 		Functions\expect( 'switch_to_blog' )->twice();
 		Functions\expect( 'restore_current_blog' )->twice();
-		Functions\expect( 'wp_clear_scheduled_hook' )->twice();
+		Functions\expect( 'wp_clear_scheduled_hook' )->times( 4 );
 
 		Schema::deactivate( true );
 

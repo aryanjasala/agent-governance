@@ -12,5 +12,5 @@ module.exports = {
 	// This plugin's own Docker site by default. A shared site can be used by pointing WP_COMPOSE_DIR at its compose folder.
 	COMPOSE_DIR: process.env.WP_COMPOSE_DIR || path.join( __dirname, '..', 'env' ),
 	// Options the plugin stores, cleared before each run.
-	OPTIONS: ['agent_governance_settings', 'agent_governance_rules'],
+	OPTIONS: ['agent_governance_settings', 'agent_governance_rules', 'agent_governance_outbox', 'agent_governance_last_notified', 'agent_governance_reminded', 'agent_governance_webhook_status'],
 };

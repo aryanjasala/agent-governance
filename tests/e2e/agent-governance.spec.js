@@ -6,6 +6,18 @@ const SCREEN = '/wp-admin/tools.php?page=agent-governance';
 const MCP_ADAPTER = 'https://github.com/WordPress/mcp-adapter/releases/download/v0.7.1/mcp-adapter.zip';
 const READ_ONLY_MODE = 'https://github.com/aryanjasala/axle-read-only-mode/releases/download/v3.0.0/axle-read-only-mode.zip';
 
+/** Options the suite starts each test without. */
+const RESET_OPTIONS = [
+	'agent_governance_settings',
+	'agent_governance_rules',
+	'agent_governance_outbox',
+	'agent_governance_last_notified',
+	'agent_governance_reminded',
+	'agent_governance_webhook_status',
+	'agg_fixture_mail',
+	'agg_fixture_hooks',
+];
+
 /** Application passwords this suite made, removed again at the end. */
 const madePasswords = new Set();
 
@@ -61,7 +73,7 @@ async function agent( name ) {
 
 /** Back to the defaults: no rules, not paused, no rate limit in the way. */
 function reset() {
-	for ( const name of [ 'agent_governance_settings', 'agent_governance_rules', 'agg_fixture_mail' ] ) {
+	for ( const name of RESET_OPTIONS ) {
 		try {
 			wp( 'option', 'delete', name );
 		} catch ( error ) {
@@ -84,7 +96,7 @@ test.describe( 'Agent Governance', () => {
 	// Leave the site as the suite found it: no fixture, no application passwords, no settings, and the
 	// approver capability on Administrator.
 	test.afterAll( () => {
-		for ( const name of [ 'agent_governance_settings', 'agent_governance_rules', 'agg_fixture_mail' ] ) {
+		for ( const name of RESET_OPTIONS ) {
 			succeeds( 'option', 'delete', name );
 		}
 		for ( const uuid of madePasswords ) {
@@ -616,6 +628,223 @@ test.describe( 'Agent Governance', () => {
 		expect( Number( one( 'SELECT COUNT(*) FROM wp_agent_governance_log WHERE user_id = 1' ) ) ).toBe( 0 );
 		expect( Number( one( `SELECT COUNT(*) FROM wp_agent_governance_log WHERE identity = '${ bot.identity }' AND ip = '' AND input IS NULL` ) ) ).toBeGreaterThan( 0 );
 		await bot.context.dispose();
+	} );
+
+	test.describe( 'telling approvers', () => {
+		const HOOK = 'https://hooks.example.test/approvals';
+		const mails = () => option( 'agg_fixture_mail' ) || [];
+		const hooks = () => ( option( 'agg_fixture_hooks' ) || [] ).map( ( hook ) => ( { url: hook.url, body: JSON.parse( hook.body ) } ) );
+
+		test.afterEach( () => {
+			succeeds( 'user', 'meta', 'delete', 'admin', 'agent_governance_notify' );
+		} );
+
+		test( 'the webhook gets the waiting request with its dry-run summary, never a secret, and a way to open it', async () => {
+			const bot = await agent( 'hook-bot' );
+			wp( 'agent-governance', 'settings', `--webhook-url=${ HOOK }`, '--user=admin' );
+			const id = newPost( 'Webhook post' );
+
+			const held = await bot.ability( 'agg-fixture/trash-post', { id } );
+			expect( held.status ).toBe( 202 );
+			const requestId = held.body.data.request_id;
+
+			const sent = hooks();
+			expect( sent ).toHaveLength( 1 );
+			expect( sent[ 0 ].url ).toBe( HOOK );
+			expect( sent[ 0 ].body.event ).toBe( 'requests_held' );
+			expect( sent[ 0 ].body.requests[ 0 ] ).toMatchObject( { id: requestId, summary: 'Moves "Webhook post" to the trash.', method: 'POST' } );
+			expect( sent[ 0 ].body.requests[ 0 ].review_url ).toContain( `request=${ requestId }` );
+			expect( post( id, 'post_status' ) ).toBe( 'publish' );
+			expect( option( 'agent_governance_webhook_status' ).ok ).toBe( true );
+			await bot.context.dispose();
+		} );
+
+		test( 'the Slack format has text and blocks', async () => {
+			const bot = await agent( 'slack-bot' );
+			wp( 'agent-governance', 'settings', `--webhook-url=${ HOOK }`, '--webhook-format=slack', '--user=admin' );
+
+			await bot.ability( 'agg-fixture/trash-post', { id: newPost( 'Slack post' ) } );
+
+			const [ sent ] = hooks();
+			expect( sent.body.text ).toContain( 'needs approval' );
+			expect( sent.body.blocks[ 1 ].text.text ).toContain( 'Moves "Slack post" to the trash.' );
+			await bot.context.dispose();
+		} );
+
+		test( 'a webhook that fails is reported, and email still goes out', async ( { page } ) => {
+			const bot = await agent( 'failing-bot' );
+			wp( 'agent-governance', 'settings', `--webhook-url=${ HOOK }/fail`, '--user=admin' );
+
+			await bot.ability( 'agg-fixture/trash-post', { id: newPost( 'Failing hook post' ) } );
+
+			expect( mails() ).toHaveLength( 1 );
+			expect( option( 'agent_governance_webhook_status' ) ).toMatchObject( { ok: false } );
+			await page.goto( `${ SCREEN }&tab=policies` );
+			await expect( page.locator( '#agg-webhook' ).locator( 'xpath=ancestor::td' ) ).toContainText( 'Failed' );
+			await expect( page.locator( '#agg-webhook' ).locator( 'xpath=ancestor::td' ) ).toContainText( 'HTTP 500' );
+			await bot.context.dispose();
+		} );
+
+		test( 'the Policies screen saves the webhook, groups, reminders, and sends a test', async ( { page } ) => {
+			await page.goto( `${ SCREEN }&tab=policies` );
+			await page.locator( '#agg-webhook' ).fill( HOOK );
+			await page.locator( 'select[name="webhook_format"]' ).selectOption( 'slack' );
+			await page.locator( '#agg-batch' ).fill( '10' );
+			await page.locator( '#agg-reminder' ).fill( '6' );
+			await page.getByRole( 'button', { name: 'Save and send a test' } ).click();
+
+			await expect( page.locator( '.agg-message' ) ).toContainText( 'The test message was delivered.' );
+			expect( option( 'agent_governance_settings' ) ).toMatchObject( { webhook_url: HOOK, webhook_format: 'slack', webhook_by: 1, batch_minutes: 10, reminder_hours: 6 } );
+			expect( hooks()[ 0 ].body.text ).toContain( 'needs approval' );
+			expect( JSON.stringify( hooks()[ 0 ].body ) ).toContain( 'Nothing is waiting' );
+			await expect( page.locator( '#agg-webhook' ).locator( 'xpath=ancestor::td' ) ).toContainText( 'Delivered' );
+
+			// Enter saves; it does not send a test.
+			const before = hooks().length;
+			await page.locator( '#agg-batch' ).fill( '5' );
+			await page.locator( '#agg-batch' ).press( 'Enter' );
+			await expect( page.locator( '.agg-message' ) ).toContainText( 'Policies saved.' );
+			expect( hooks() ).toHaveLength( before );
+
+			// An empty address turns it off.
+			await page.locator( '#agg-webhook' ).fill( '' );
+			await page.getByRole( 'button', { name: 'Save policies' } ).click();
+			expect( option( 'agent_governance_settings' ).webhook_url ).toBe( '' );
+		} );
+
+		test( 'a burst goes out as one message after the first one', async () => {
+			const bot = await agent( 'burst-bot' );
+			wp( 'agent-governance', 'settings', `--webhook-url=${ HOOK }`, '--user=admin' );
+			const ids = [ newPost( 'Burst one' ), newPost( 'Burst two' ), newPost( 'Burst three' ) ];
+
+			const requestIds = [];
+			for ( const id of ids ) {
+				requestIds.push( ( await bot.ability( 'agg-fixture/trash-post', { id } ) ).body.data.request_id );
+			}
+
+			// The first went out at once. The other two wait.
+			expect( mails() ).toHaveLength( 1 );
+			expect( hooks() ).toHaveLength( 1 );
+			expect( option( 'agent_governance_outbox' ) ).toEqual( requestIds.slice( 1 ) );
+			expect( wp( 'cron', 'event', 'list', '--format=csv' ) ).toContain( 'agent_governance_flush_notifications' );
+
+			wp( 'cron', 'event', 'run', 'agent_governance_flush_notifications' );
+
+			expect( mails() ).toHaveLength( 2 );
+			expect( mails()[ 1 ].subject ).toContain( '2 agent requests need approval' );
+			expect( mails()[ 1 ].message ).toContain( `Request #${ requestIds[ 1 ] }` );
+			expect( mails()[ 1 ].message ).toContain( `Request #${ requestIds[ 2 ] }` );
+			expect( mails()[ 1 ].message ).toContain( 'Nothing is approved from this email' );
+			expect( hooks() ).toHaveLength( 2 );
+			expect( hooks()[ 1 ].body.count ).toBe( 2 );
+			expect( option( 'agent_governance_outbox' ) ).toBeNull();
+			await bot.context.dispose();
+		} );
+
+		test( 'a request decided while it waited is left out of the burst message', async () => {
+			const bot = await agent( 'decided-bot' );
+			const requestIds = [];
+			for ( const title of [ 'Decided one', 'Decided two', 'Decided three' ] ) {
+				requestIds.push( ( await bot.ability( 'agg-fixture/trash-post', { id: newPost( title ) } ) ).body.data.request_id );
+			}
+			wp( 'agent-governance', 'reject', String( requestIds[ 1 ] ), '--reason=No' );
+
+			wp( 'cron', 'event', 'run', 'agent_governance_flush_notifications' );
+
+			expect( mails() ).toHaveLength( 2 );
+			expect( mails()[ 1 ].subject ).toContain( `Agent request #${ requestIds[ 2 ] } needs approval` );
+			await bot.context.dispose();
+		} );
+
+		test( 'a request close to expiring gets one reminder', async () => {
+			const bot = await agent( 'reminder-bot' );
+			const requestId = ( await bot.ability( 'agg-fixture/trash-post', { id: newPost( 'About to expire' ) } ) ).body.data.request_id;
+			const fresh = mails().length;
+
+			// Too early: nothing yet.
+			wp( 'agent-governance', 'remind' );
+			expect( mails() ).toHaveLength( fresh );
+
+			wp( 'db', 'query', `UPDATE wp_agent_governance_requests SET created = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 21 HOUR) WHERE id = ${ requestId }` );
+			wp( 'agent-governance', 'remind' );
+			expect( mails() ).toHaveLength( fresh + 1 );
+			expect( mails()[ fresh ].subject ).toContain( 'Reminder' );
+			expect( mails()[ fresh ].message ).toContain( `Request #${ requestId }` );
+			expect( Object.keys( option( 'agent_governance_reminded' ) ) ).toContain( String( requestId ) );
+
+			// Once only.
+			wp( 'agent-governance', 'remind' );
+			expect( mails() ).toHaveLength( fresh + 1 );
+			await bot.context.dispose();
+		} );
+
+		test( 'a person turns their own email and reminders off on their profile', async ( { page } ) => {
+			await page.goto( '/wp-admin/profile.php' );
+			await expect( page.locator( '#agent-governance-notifications' ) ).toBeVisible();
+			await page.getByLabel( 'Email me when an agent call is held for approval' ).uncheck();
+			await page.getByLabel( 'Email me before a waiting request expires' ).uncheck();
+			await page.getByRole( 'button', { name: 'Update Profile' } ).click();
+			await expect( page.locator( '#message' ) ).toContainText( 'Profile updated.' );
+			expect( JSON.parse( wp( 'user', 'meta', 'get', 'admin', 'agent_governance_notify', '--format=json' ) ) ).toEqual( { email: false, reminder: false, notice: true } );
+			await expect( page.getByLabel( 'Email me when an agent call is held for approval' ) ).not.toBeChecked();
+
+			const bot = await agent( 'quiet-bot' );
+			const requestId = ( await bot.ability( 'agg-fixture/trash-post', { id: newPost( 'Quiet post' ) } ) ).body.data.request_id;
+			expect( mails() ).toHaveLength( 0 );
+
+			wp( 'db', 'query', `UPDATE wp_agent_governance_requests SET created = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 21 HOUR) WHERE id = ${ requestId }` );
+			wp( 'agent-governance', 'remind' );
+			expect( mails() ).toHaveLength( 0 );
+
+			// Still there for them to decide in wp-admin.
+			await page.goto( `${ SCREEN }&tab=requests&request=${ requestId }` );
+			await expect( page.getByRole( 'button', { name: 'Approve and run' } ) ).toBeVisible();
+			await bot.context.dispose();
+		} );
+
+		test( 'WP-CLI and the ability show and change the settings', async () => {
+			wp( 'agent-governance', 'notify-user', 'admin', '--reminder=off' );
+			expect( JSON.parse( wp( 'agent-governance', 'notify-user', 'admin', '--format=json' ) )[ 0 ] ).toMatchObject( { reminder: 'off', email: 'on' } );
+			wp( 'agent-governance', 'settings', '--batch-minutes=2', '--reminder-hours=3' );
+			expect( option( 'agent_governance_settings' ) ).toMatchObject( { batch_minutes: 2, reminder_hours: 3 } );
+			expect( succeeds( 'agent-governance', 'settings', '--webhook-format=xml' ) ).toBe( false );
+			expect( succeeds( 'agent-governance', 'notify-test' ) ).toBe( false );
+
+			const out = JSON.parse( wpEval( 'wp_set_current_user( 1 ); echo wp_json_encode( wp_get_ability( "agent-governance/get-notification-settings" )->execute( array() ) );' ) );
+			expect( out.me ).toEqual( { email: true, reminder: false, notice: true } );
+			expect( out.site ).toMatchObject( { webhook: false, batch_minutes: 2, reminder_hours: 3 } );
+		} );
+
+		test( 'an approver who cannot open the post is not emailed about it', async () => {
+			succeeds( 'user', 'create', 'outsider', 'outsider@example.com', '--role=author', '--user_pass=outsider-pass-123' );
+			wp( 'cap', 'add', 'author', 'agent_governance_approve' );
+			try {
+				const bot = await agent( 'private-bot' );
+				await bot.call( 'DELETE', `/wp/v2/posts/${ newPost( 'Not for the author' ) }` );
+
+				const to = mails().flatMap( ( mail ) => mail.to );
+				expect( to ).toContain( 'admin@example.com' );
+				expect( to ).not.toContain( 'outsider@example.com' );
+				await bot.context.dispose();
+			} finally {
+				succeeds( 'cap', 'remove', 'author', 'agent_governance_approve' );
+				succeeds( 'user', 'delete', 'outsider', '--yes' );
+			}
+		} );
+
+		test( 'the tab title count follows the queue without a reload', async ( { page } ) => {
+			const bot = await agent( 'tab-bot' );
+			await bot.ability( 'agg-fixture/trash-post', { id: newPost( 'Tab one' ) } );
+			await page.goto( `${ SCREEN }&tab=requests` );
+			await expect.poll( () => page.title() ).toMatch( /^\(\d+\) / );
+			const count = () => page.title().then( ( title ) => Number( ( title.match( /^\((\d+)\)/ ) || [] )[ 1 ] ) );
+			const before = await count();
+
+			await bot.ability( 'agg-fixture/trash-post', { id: newPost( 'Tab two' ) } );
+			await page.evaluate( () => window.wp.heartbeat.connectNow() );
+			await expect.poll( count ).toBe( before + 1 );
+			await bot.context.dispose();
+		} );
 	} );
 
 	test.describe( 'through the MCP adapter', () => {

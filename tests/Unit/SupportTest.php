@@ -65,9 +65,10 @@ final class SupportTest extends AgentTestCase {
 		$export = $privacy->export( 'ed@example.com' );
 
 		$this->assertTrue( $export['done'] );
-		$this->assertCount( 2, $export['data'] );
-		$this->assertSame( '203.0.113.5', $export['data'][0]['data'][4]['value'] );
-		$this->assertSame( '{"id":5,"password":"[redacted]"}', $export['data'][1]['data'][3]['value'] );
+		$this->assertCount( 3, $export['data'] );
+		$this->assertSame( 'agent-governance-notifications', $export['data'][0]['group_id'] );
+		$this->assertSame( '203.0.113.5', $export['data'][1]['data'][4]['value'] );
+		$this->assertSame( '{"id":5,"password":"[redacted]"}', $export['data'][2]['data'][3]['value'] );
 	}
 
 	public function test_privacy_erases_by_anonymising(): void {
@@ -226,9 +227,15 @@ final class SupportTest extends AgentTestCase {
 		$health                                     = new SiteHealth( new \AryanX\Axle\AgentGovernance\Settings(), $this->requests );
 		$this->assertSame( 'Agent writes are paused', $health->run()['label'] );
 
+		$this->options['agent_governance_settings'] = array( 'webhook_url' => 'https://hooks.example.com/x' );
+		$this->options['agent_governance_webhook_status'] = array( 'time' => time(), 'ok' => false, 'message' => 'The receiver answered HTTP 404.' );
+		$this->wpdb->returns['get_var']             = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', null );
+		$health                                     = new SiteHealth( new \AryanX\Axle\AgentGovernance\Settings(), $this->requests );
+		$this->assertSame( 'The approval webhook is failing', $health->run()['label'] );
+
 		$this->options['agent_governance_settings'] = array();
 		$this->wpdb->returns['get_var']             = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', null );
 		$health                                     = new SiteHealth( new \AryanX\Axle\AgentGovernance\Settings(), $this->requests );
-		$this->assertSame( 'good', $health->run()['status'] );
+		$this->assertSame( 'good', $health->run()['status'], 'A failed webhook that was removed does not count.' );
 	}
 }

@@ -18,6 +18,7 @@ use AryanX\Axle\AgentGovernance\Service;
 use AryanX\Axle\AgentGovernance\Settings;
 use AryanX\Axle\AgentGovernance\Simulator;
 use AryanX\Axle\AgentGovernance\Suggestions;
+use AryanX\Axle\AgentGovernance\Webhook;
 
 use const AryanX\Axle\AgentGovernance\PLUGIN_FILE;
 use const AryanX\Axle\AgentGovernance\VERSION;
@@ -248,7 +249,7 @@ final class Page implements Service {
 	public function enqueue(): void {
 		AxleUi::enqueue();
 		wp_enqueue_style( 'agent-governance-admin', plugins_url( 'assets/admin.css', PLUGIN_FILE ), array( AxleUi::HANDLE ), VERSION );
-		wp_enqueue_script( 'agent-governance-admin', plugins_url( 'assets/admin.js', PLUGIN_FILE ), array( 'wp-hooks', 'wp-a11y' ), VERSION, true );
+		wp_enqueue_script( 'agent-governance-admin', plugins_url( 'assets/admin.js', PLUGIN_FILE ), array( 'wp-hooks', 'wp-a11y', 'heartbeat' ), VERSION, true );
 	}
 
 	/**
@@ -389,18 +390,21 @@ final class Page implements Service {
 		}
 
 		$messages = array(
-			'executed'    => array( 'success', __( 'Approved. The call ran.', 'agent-governance' ) ),
-			'failed'      => array( 'warning', __( 'Approved, but the call failed. The error is under Result.', 'agent-governance' ) ),
-			'rejected'    => array( 'success', __( 'Rejected. The agent will see your reason.', 'agent-governance' ) ),
-			'error'       => array( 'error', __( 'That did not work.', 'agent-governance' ) ),
-			'rolled_back' => array( 'success', __( 'Session rolled back.', 'agent-governance' ) ),
-			'paused'      => array( 'warning', __( 'Agent writes are paused.', 'agent-governance' ) ),
-			'resumed'     => array( 'success', __( 'Agent writes are allowed again.', 'agent-governance' ) ),
-			'saved'       => array( 'success', __( 'Policies saved.', 'agent-governance' ) ),
-			'rule_added'  => array( 'success', __( 'Rule added. It is the first rule, so it applies right away.', 'agent-governance' ) ),
-			'rule_gone'   => array( 'success', __( 'Rule removed.', 'agent-governance' ) ),
-			'dismissed'   => array( 'success', __( 'Suggestion hidden. It will not come back for you.', 'agent-governance' ) ),
-			'steps_done'  => array( 'success', __( 'Getting started hidden.', 'agent-governance' ) ),
+			'executed'       => array( 'success', __( 'Approved. The call ran.', 'agent-governance' ) ),
+			'failed'         => array( 'warning', __( 'Approved, but the call failed. The error is under Result.', 'agent-governance' ) ),
+			'rejected'       => array( 'success', __( 'Rejected. The agent will see your reason.', 'agent-governance' ) ),
+			'error'          => array( 'error', __( 'That did not work.', 'agent-governance' ) ),
+			'rolled_back'    => array( 'success', __( 'Session rolled back.', 'agent-governance' ) ),
+			'paused'         => array( 'warning', __( 'Agent writes are paused.', 'agent-governance' ) ),
+			'resumed'        => array( 'success', __( 'Agent writes are allowed again.', 'agent-governance' ) ),
+			'saved'          => array( 'success', __( 'Policies saved.', 'agent-governance' ) ),
+			'webhook_ok'     => array( 'success', __( 'Policies saved. The test message was delivered.', 'agent-governance' ) ),
+			'webhook_failed' => array( 'error', __( 'Policies saved. The test message was not delivered. Check the address and try again.', 'agent-governance' ) ),
+			'webhook_none'   => array( 'warning', __( 'Policies saved. Enter a webhook address to send a test.', 'agent-governance' ) ),
+			'rule_added'     => array( 'success', __( 'Rule added. It is the first rule, so it applies right away.', 'agent-governance' ) ),
+			'rule_gone'      => array( 'success', __( 'Rule removed.', 'agent-governance' ) ),
+			'dismissed'      => array( 'success', __( 'Suggestion hidden. It will not come back for you.', 'agent-governance' ) ),
+			'steps_done'     => array( 'success', __( 'Getting started hidden.', 'agent-governance' ) ),
 		);
 		if ( ! isset( $messages[ $code ] ) ) {
 			return;
@@ -509,6 +513,10 @@ final class Page implements Service {
 		}
 
 		$posted = $this->posted_policy();
+		$url    = isset( $_POST['webhook_url'] ) ? Settings::clean_webhook_url( sanitize_text_field( wp_unslash( $_POST['webhook_url'] ) ) ) : '';
+
+		// The webhook shows details only for what the person who set it up could open.
+		$by = $url === $this->settings->get( 'webhook_url' ) && (int) $this->settings->get( 'webhook_by' ) > 0 ? (int) $this->settings->get( 'webhook_by' ) : get_current_user_id();
 
 		$this->settings->update(
 			array(
@@ -516,12 +524,25 @@ final class Page implements Service {
 				'retention_days' => isset( $_POST['retention_days'] ) ? absint( $_POST['retention_days'] ) : 30,
 				'email'          => ! empty( $_POST['email'] ),
 				'notice'         => ! empty( $_POST['notice'] ),
+				'webhook_url'    => $url,
+				'webhook_format' => isset( $_POST['webhook_format'] ) ? sanitize_key( wp_unslash( $_POST['webhook_format'] ) ) : 'json',
+				'webhook_by'     => '' === $url ? 0 : $by,
+				'batch_minutes'  => isset( $_POST['batch_minutes'] ) ? absint( $_POST['batch_minutes'] ) : 5,
+				'reminder_hours' => isset( $_POST['reminder_hours'] ) ? absint( $_POST['reminder_hours'] ) : 4,
 				'defaults'       => $posted['defaults'],
 			)
 		);
 
 		$rules = $posted['rules'];
 		$this->settings->save_rules( $rules );
+
+		if ( ! empty( $_POST['send_test'] ) ) {
+			if ( '' === $url ) {
+				$this->back( self::url( 'policies' ), 'webhook_none' );
+			}
+			$webhook = new Webhook( $this->settings );
+			$this->back( self::url( 'policies' ), $webhook->test() ? 'webhook_ok' : 'webhook_failed', (string) ( Webhook::status()['message'] ?? '' ) );
+		}
 
 		$this->back( self::url( 'policies' ), 'saved' );
 	}
@@ -703,6 +724,11 @@ final class Page implements Service {
 				),
 			),
 			'policies' => array(
+				array(
+					'id'      => 'notifications',
+					'title'   => __( 'Telling approvers', 'agent-governance' ),
+					'content' => '<p>' . esc_html__( 'Approvers get an email when a call is held, and the webhook gets a message if you set one. The first request after a quiet spell goes out at once. Requests that follow within the group time are sent together. A reminder goes out before a request expires.', 'agent-governance' ) . '</p><p>' . esc_html__( 'Each approver can turn their own email, reminders and notice off on their profile. People are only told about requests on things they could change themselves. Nobody can approve from a message: the link opens wp-admin, where you sign in and confirm.', 'agent-governance' ) . '</p>',
+				),
 				array(
 					'id'      => 'rules',
 					'title'   => __( 'Rules', 'agent-governance' ),

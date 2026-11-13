@@ -108,6 +108,45 @@ final class Requests {
 	}
 
 	/**
+	 * Whole request rows by ID, at most 200, oldest first.
+	 *
+	 * @param int[] $ids Request IDs.
+	 * @return array[]
+	 */
+	public function rows( array $ids ): array {
+		global $wpdb;
+
+		$ids = array_slice( array_values( array_unique( array_filter( array_map( 'intval', $ids ) ) ) ), 0, 200 );
+		if ( ! $ids ) {
+			return array();
+		}
+
+		$placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+		// phpcs:disable WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber, PluginCheck.Security.DirectDB.UnescapedDBParameter, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- $placeholders is a list of %d; the plugin's own table.
+		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM %i WHERE id IN ({$placeholders}) ORDER BY id ASC", array_merge( array( Schema::requests_table() ), $ids ) ), ARRAY_A );
+		// phpcs:enable
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/**
+	 * Pending requests that expire within the lead time, at most 100.
+	 *
+	 * @param int $lead Seconds before expiry.
+	 * @return array[]
+	 */
+	public function expiring( int $lead ): array {
+		global $wpdb;
+
+		$ttl = Settings::request_ttl();
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Hourly check of the plugin's own table.
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE status = %s AND created >= %s AND created < %s ORDER BY id ASC LIMIT 100', Schema::requests_table(), self::PENDING, gmdate( 'Y-m-d H:i:s', time() - $ttl ), gmdate( 'Y-m-d H:i:s', time() - $ttl + $lead ) ), ARRAY_A );
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/**
 	 * Changes columns of a request.
 	 *
 	 * @param int         $id      Request ID.

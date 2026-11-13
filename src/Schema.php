@@ -92,6 +92,7 @@ final class Schema {
 	 */
 	public static function deactivate_site(): void {
 		wp_clear_scheduled_hook( self::CRON_HOOK );
+		wp_clear_scheduled_hook( Notifier::FLUSH_HOOK );
 
 		/**
 		 * Filters whether deactivating takes the approver capability off every role.

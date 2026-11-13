@@ -75,7 +75,7 @@ A held call is stored with its full input and a dry-run preview, and the agent g
 
 Through MCP only the message gets through, so it names the request.
 
-Approvers (the `agent_governance_approve` capability, given to administrators on activation) get an email and a notice in wp-admin, a count on the menu, and the request with its preview under **Tools > AI Agents**.
+Approvers (the `agent_governance_approve` capability, given to administrators on activation) get an email and a notice in wp-admin, a count on the menu, and the request with its preview under **Tools > AI Agents**. See [Telling approvers](#telling-approvers).
 
 A site is never left without an approver. If something takes `agent_governance_approve` off every role, such as a role clean-up tool, anyone with `manage_options` approves until a role has it again (`agent_governance_fallback_capability`). People who manage options see a notice with a **Give it back to Administrator** button, Site Health reports it as critical, and `wp agent-governance restore-capability` does the same from the command line.
 
@@ -115,6 +115,43 @@ add_filter( 'agent_governance_dry_run', function ( $preview, array $call ) {
 	);
 }, 10, 2 );
 ```
+
+## Telling approvers
+
+When a call is held, approvers hear about it by email and, if you set one, by webhook. A message holds the agent, the call, the dry-run summary with secrets removed, when the request expires and a link. The link opens the request in wp-admin. You sign in if you are not, read the preview and confirm. Nothing is approved from a message.
+
+- **Bursts.** The first request after a quiet spell goes out at once. Requests that arrive within the group time (5 minutes by default) of the last message wait and go out together as one email per approver and one webhook message. Requests decided in the meantime are left out. `0` sends each one at once.
+- **Reminders.** The hourly clean-up reminds approvers once about each request that expires within 4 hours. A request waits a day by default. The setting is in hours; `0` turns reminders off. A lead longer than half the waiting time counts as half of it.
+- **Per person.** On their own profile, each approver turns off the email, the reminder and the notice in wp-admin. `wp agent-governance notify-user <user>` does the same, and the `agent-governance/get-notification-settings` ability reads them. Agents cannot change them.
+- **Who is told.** Only approvers who could open what the call touches, as in [Who may decide a request](#who-may-decide-a-request). The webhook has no person, so it shows details only for objects the user who saved it could open. For other requests it carries the request ID and the link. Nobody who is not an approver is told anything.
+- **Webhook.** Set the address on **Tools > AI Agents > Policies**, pick JSON or Slack, and use **Save and send a test**. The address must be `http` or `https`, and WordPress refuses private network addresses. The last result shows next to the field, and Site Health warns while the webhook fails. Email is not affected when it does.
+
+The JSON body:
+
+```json
+{
+  "event": "requests_held",
+  "site": "Example",
+  "site_url": "https://example.com",
+  "queue": "https://example.com/wp-admin/tools.php?page=agent-governance&tab=requests",
+  "count": 1,
+  "requests": [
+    {
+      "id": 12,
+      "agent": "Shop assistant (maria)",
+      "kind": "destructive",
+      "review_url": "https://example.com/wp-admin/tools.php?page=agent-governance&tab=requests&request=12",
+      "expires_at": "2026-11-14T10:00:00+00:00",
+      "method": "DELETE",
+      "target": "/wp/v2/posts/42",
+      "summary": "Moves the Post \"Spring sale\" to the trash.",
+      "changes": [ { "field": "Status", "before": "publish", "after": "trash" } ]
+    }
+  ]
+}
+```
+
+`event` is `requests_expiring` for a reminder. The Slack format sends `text` and `blocks` that Slack and the services that copy its format accept. `changes` has at most 5 entries, each value cut at 120 characters, and values of secret-looking fields are `[redacted]`.
 
 ## Sessions and rollback
 
@@ -166,8 +203,19 @@ While an agent call runs, every post it changes is recorded against the call:
 | `agent_governance_retention_days` | filter | `( int $days )`. Days log entries and decided requests are kept. Default 30 |
 | `agent_governance_dry_run` | filter | `( array\|null $preview, array $call )`. Your own preview: `summary`, `changes` (`field`, `before`, `after`), optional `object` (`type`, `id`, `label`, `url`) |
 | `agent_governance_ability_preview` | filter | `( array $preview, string $name, mixed $input )`. The preview of an ability without its own: `supported` (false) and `summary` from the ability's label and description |
-| `agent_governance_notify_recipients` | filter | `( string[] $emails, array $request )`. Who gets the email about a held call. Default every approver, at most 50 |
-| `agent_governance_notification_email` | filter | `( array\|false $email, array $request )`. `to`, `subject`, `message`, `headers`. False skips it |
+| `agent_governance_notify_recipients` | filter | `( string[] $emails, array $request, string $kind )`. Who gets the email about a held call or a reminder (`held` or `reminder`). Default every approver who could open the call's object and has not turned the email off, at most 50 |
+| `agent_governance_notification_email` | filter | `( array\|false $email, array $request, array $requests, string $kind )`. `to`, `subject`, `message`, `headers`. False skips it. `$requests` holds every request in the email, more than one for a burst |
+| `agent_governance_batch_window` | filter | `( int $seconds )`. How long a burst of held requests is grouped into one message. Default from the setting, 5 minutes. 0 to 1 hour |
+| `agent_governance_reminder_lead` | filter | `( int $seconds )`. How long before a request expires approvers are reminded. Default from the setting, 4 hours. 0 turns it off |
+| `agent_governance_webhook_url` | filter | `( string $url )`. The webhook address, for example from a constant |
+| `agent_governance_webhook_payload` | filter | `( array $payload, array $requests, string $kind )`. The body before it is sent as JSON. `$kind` is `held` or `reminder` |
+| `agent_governance_webhook_args` | filter | `( array $args, string $kind )`. The `wp_safe_remote_post()` arguments, for a header such as a token |
+| `agent_governance_default_preferences` | filter | `( array $defaults )`. What `email`, `reminder` and `notice` are for a person who has not chosen. Default all true |
+| `agent_governance_notification_queued` | action | `( array $request, int $window )`. A held request waits for the next message because one just went out |
+| `agent_governance_approvers_notified` | action | `( array $requests, string $kind, bool $sent )`. After approvers were told, by email or webhook |
+| `agent_governance_reminder_sent` | action | `( array $requests )`. After approvers were reminded about requests that expire soon |
+| `agent_governance_webhook_sent` | action | `( bool $ok, array $requests, string $kind )`. After a webhook message was sent, and whether the receiver accepted it |
+| `agent_governance_preferences_saved` | action | `( int $user_id, array $new, array $old )`. A person changed their notification settings |
 | `agent_governance_notice_message` | filter | `( string $message, int $count )`. The wp-admin notice about waiting calls |
 | `agent_governance_pending_message` | filter | `( string $message, int $id, array $call )`. What the agent reads when its call is held. Keep the request ID in it |
 | `agent_governance_denied_message` | filter | `( string $message, array $call, array $decision )`. What the agent reads when its call is refused by a rule, the pause or the rate limit |
@@ -248,6 +296,7 @@ On WordPress 6.9 and later, Agent Governance registers [abilities](https://devel
 | `agent-governance/get-request` | Read-only. A held request by `id`: `status` (pending, approved, rejected, expired, executed, failed), `message`, `reason`, `preview`, `expires` and `result` | the user who made it, or an approver |
 | `agent-governance/list-my-requests` | Read-only. The calling agent's held requests (its application password, or else its user), newest first. `status`, `limit` | any signed-in user |
 | `agent-governance/list-pending` | Read-only. Requests waiting for a decision. `limit` | an approver |
+| `agent-governance/get-notification-settings` | Read-only. The signed-in approver's own `email`, `reminder` and `notice` settings, and the site's: email, whether a webhook is set (never its address), format, group minutes and reminder hours | an approver |
 | `agent-governance/decide-request` | Destructive. `id`, `decision` (`approve` or `reject`), `reason`. Refused through application passwords and MCP | an approver signed in as themselves |
 | `agent-governance/simulate-policy` | Read-only. Replays the log against a draft: `days`, `rules`, `defaults`, `rate_limit`, `without_rule`. Per agent: counts, changes and example calls. Saves nothing | someone who may change policies |
 | `agent-governance/export-session-evidence` | Read-only. The signed evidence file of a session by `session` | an approver |
@@ -273,7 +322,10 @@ wp agent-governance delete-rule <id>
 wp agent-governance simulate [--policy=<file>] [--without-rule=<id>] [--days=<n>] [--format=<format>]   # try a draft on past calls, saves nothing
 wp agent-governance evidence <session> [--file=<file>]   # signed JSON evidence for a session
 wp agent-governance verify-evidence <file>               # check the signature
-wp agent-governance settings [--rate-limit=<n>] [--retention-days=<n>] [--email=on|off] [--notice=on|off] [--readonly=<action>] [--write=<action>] [--destructive=<action>]
+wp agent-governance settings [--rate-limit=<n>] [--retention-days=<n>] [--email=on|off] [--notice=on|off] [--webhook-url=<url>] [--webhook-format=json|slack] [--batch-minutes=<n>] [--reminder-hours=<n>] [--readonly=<action>] [--write=<action>] [--destructive=<action>]
+wp agent-governance notify-test                       # send a test message to the webhook
+wp agent-governance notify-user <user> [--email=on|off] [--reminder=on|off] [--notice=on|off] [--format=<format>]
+wp agent-governance remind                            # remind about requests close to expiring now
 wp agent-governance cleanup                           # expire overdue requests and purge old log rows now
 wp agent-governance restore-capability                # give the approver capability back to Administrator
 ```
@@ -313,20 +365,23 @@ On a session's review screen, **Download signed evidence** gives a JSON file: th
 | `{prefix}agent_governance_requests` table | One row per held call: time, identity, agent, user, session, ability or route, method, input (full until decided, then with secrets removed), status, who decided and when, reason, result and the dry-run preview |
 | `agent_governance_settings` option | Pause, rate limit, retention, notifications and the defaults per kind |
 | `agent_governance_rules` option | Saved rules |
+| `agent_governance_outbox`, `agent_governance_last_notified`, `agent_governance_reminded` and `agent_governance_webhook_status` options | Requests waiting for the end of a burst, when the last message went out, requests already reminded about, and how the last webhook message went. Not loaded on every request |
+| `agent_governance_notify` user meta | One person's email, reminder and notice settings |
 | `agent_governance_db_version` option | Table version. Removed on deactivation, so the next activation sets the capability up again |
 | `agent_governance_approve` capability | Given to administrators on activation. Taken off every role on deactivation and on uninstall, so no role keeps it while the plugin is off |
 
-The `agent_governance_cleanup` cron event runs hourly: it expires requests that waited too long and deletes log rows and decided requests older than the retention period, 1000 of each per run. The count of waiting requests is cached in the object cache until a request changes.
+The `agent_governance_flush_notifications` event sends a burst once its group time is over. The `agent_governance_cleanup` cron event runs hourly, reminds approvers about requests close to expiring, and it expires requests that waited too long and deletes log rows and decided requests older than the retention period, 1000 of each per run. The count of waiting requests is cached in the object cache until a request changes.
 
-Uninstalling drops both tables, deletes the options, removes the capability and the cron event, on every site of a network.
+Uninstalling drops both tables, deletes the options and user meta, removes the capability and the cron event, on every site of a network.
 
 ## Privacy
 
 The log and the queue hold user IDs, IP addresses and what agents sent, which can be personal data. So:
 
 - secret-looking input keys are removed before anything reaches the log, and from a held request once it is decided
-- **Tools > Export Personal Data** lists a user's agent calls and held requests
+- **Tools > Export Personal Data** lists a user's agent calls and held requests, and their notification settings
 - **Tools > Erase Personal Data** removes the user, IP address and input from their calls and requests, keeping a record that the calls happened, and rejects their pending requests
+- the webhook gets no secrets and, for objects its owner could not open, no details
 - **Settings > Privacy** gets suggested text
 - log entries are deleted after 30 days (`agent_governance_retention_days`), and `agent_governance_client_ip` can keep IP addresses out entirely
 
@@ -337,4 +392,6 @@ The log and the queue hold user IDs, IP addresses and what agents sent, which ca
 - Only post changes can be rolled back here. Options, terms, users, menus and anything deleted permanently are listed as not reversible.
 - A held REST call is sent again with the same route, query and JSON body. Calls that upload files are not replayed with the file.
 - The rate limit counts calls in the log, so it is exact per site but costs a small indexed query per agent call.
+- A webhook has one address for the whole site and no sign-in, so it cannot tell who reads the channel. Use a private channel, and keep in mind that details are shown for what the person who saved it could open.
+- Burst messages and reminders go out when WP-Cron runs. On a site with cron turned off, run it from the system.
 - The IP address is the one PHP sees. Behind a proxy that does not pass the visitor's address through, it is the proxy's; use `agent_governance_client_ip` to read a trusted header.

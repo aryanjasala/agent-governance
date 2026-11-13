@@ -47,6 +47,11 @@ final class Settings {
 			'retention_days' => 30,
 			'email'          => true,
 			'notice'         => true,
+			'webhook_url'    => '',
+			'webhook_format' => 'json',
+			'webhook_by'     => 0,
+			'batch_minutes'  => 5,
+			'reminder_hours' => 4,
 			'defaults'       => array(
 				'readonly'    => self::ALLOW,
 				'write'       => self::ALLOW,
@@ -119,6 +124,11 @@ final class Settings {
 			'retention_days' => isset( $value['retention_days'] ) ? max( 1, min( 3650, (int) $value['retention_days'] ) ) : $defaults['retention_days'],
 			'email'          => array_key_exists( 'email', $value ) ? (bool) $value['email'] : $defaults['email'],
 			'notice'         => array_key_exists( 'notice', $value ) ? (bool) $value['notice'] : $defaults['notice'],
+			'webhook_url'    => self::clean_webhook_url( $value['webhook_url'] ?? '' ),
+			'webhook_format' => isset( $value['webhook_format'] ) && in_array( $value['webhook_format'], array( 'json', 'slack' ), true ) ? (string) $value['webhook_format'] : $defaults['webhook_format'],
+			'webhook_by'     => max( 0, (int) ( $value['webhook_by'] ?? 0 ) ),
+			'batch_minutes'  => isset( $value['batch_minutes'] ) ? max( 0, min( 60, (int) $value['batch_minutes'] ) ) : $defaults['batch_minutes'],
+			'reminder_hours' => isset( $value['reminder_hours'] ) ? max( 0, min( 168, (int) $value['reminder_hours'] ) ) : $defaults['reminder_hours'],
 			'defaults'       => $defaults['defaults'],
 		);
 
@@ -130,6 +140,18 @@ final class Settings {
 		}
 
 		return $clean;
+	}
+
+	/**
+	 * A webhook address: http or https only, or an empty string.
+	 *
+	 * @param mixed $url Submitted address.
+	 * @return string
+	 */
+	public static function clean_webhook_url( $url ): string {
+		$url = esc_url_raw( trim( (string) $url ), array( 'http', 'https' ) );
+
+		return '' !== $url && in_array( wp_parse_url( $url, PHP_URL_SCHEME ), array( 'http', 'https' ), true ) ? $url : '';
 	}
 
 	/**
@@ -203,6 +225,43 @@ final class Settings {
 		 * @param int $seconds Default one day. 60 to 30 days.
 		 */
 		return max( MINUTE_IN_SECONDS, min( 30 * DAY_IN_SECONDS, (int) apply_filters( 'agent_governance_request_ttl', DAY_IN_SECONDS ) ) );
+	}
+
+	/**
+	 * Seconds that held requests are gathered into one message after a message went out.
+	 * 0 sends each one at once.
+	 *
+	 * @return int
+	 */
+	public function batch_window(): int {
+		/**
+		 * Filters the seconds a burst of held requests is gathered into one message.
+		 *
+		 * The first request after a quiet spell is sent at once. Requests that arrive
+		 * within this many seconds of the last message wait and go out together.
+		 *
+		 * @param int $seconds Default from the setting, 5 minutes. 0 to 1 hour, 0 sends each at once.
+		 */
+		return max( 0, min( HOUR_IN_SECONDS, (int) apply_filters( 'agent_governance_batch_window', (int) $this->get( 'batch_minutes' ) * MINUTE_IN_SECONDS ) ) );
+	}
+
+	/**
+	 * Seconds before a request expires when approvers get a reminder. 0 turns reminders off.
+	 *
+	 * @return int
+	 */
+	public function reminder_lead(): int {
+		/**
+		 * Filters how long before a held request expires approvers are reminded.
+		 *
+		 * A lead longer than half the waiting time counts as half of it, so a reminder
+		 * never goes out the moment a request is made.
+		 *
+		 * @param int $seconds Default from the setting, 4 hours. 0 turns reminders off.
+		 */
+		$lead = max( 0, min( 7 * DAY_IN_SECONDS, (int) apply_filters( 'agent_governance_reminder_lead', (int) $this->get( 'reminder_hours' ) * HOUR_IN_SECONDS ) ) );
+
+		return min( $lead, (int) floor( self::request_ttl() / 2 ) );
 	}
 
 	/**
