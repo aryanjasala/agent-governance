@@ -382,7 +382,7 @@ test.describe( 'Agent Governance', () => {
 	} );
 
 	test( 'deactivating takes the approver capability off every role, and activating gives it back', () => {
-		wp( 'cap', 'add', 'editor', 'agent_governance_approve' );
+		wp( 'cap', 'add', 'author', 'agent_governance_approve' );
 
 		wp( 'plugin', 'deactivate', 'agent-governance' );
 		const has = ( role ) => wpEval( `echo get_role( "${ role }" )->has_cap( "agent_governance_approve" ) ? "yes" : "no";` );
@@ -514,8 +514,8 @@ test.describe( 'Agent Governance', () => {
 	} );
 
 	test( 'an approver who cannot edit the post sees no preview and cannot decide', async ( { browser } ) => {
-		succeeds( 'user', 'create', 'checker', 'checker@example.com', '--role=editor', '--user_pass=checker-pass-123' );
-		wp( 'cap', 'add', 'editor', 'agent_governance_approve' );
+		succeeds( 'user', 'create', 'checker', 'checker@example.com', '--role=author', '--user_pass=checker-pass-123' );
+		wp( 'cap', 'add', 'author', 'agent_governance_approve' );
 		try {
 			const bot = await agent( 'object-bot' );
 			const id = newPost( 'Admin only post' );
@@ -534,7 +534,7 @@ test.describe( 'Agent Governance', () => {
 			expect( one( `SELECT status FROM wp_agent_governance_requests WHERE id = ${ requestId }` ) ).toBe( 'pending' );
 			await bot.context.dispose();
 		} finally {
-			succeeds( 'cap', 'remove', 'editor', 'agent_governance_approve' );
+			succeeds( 'cap', 'remove', 'author', 'agent_governance_approve' );
 			succeeds( 'user', 'delete', 'checker', '--yes' );
 		}
 	} );
