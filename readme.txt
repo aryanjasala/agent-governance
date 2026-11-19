@@ -29,6 +29,7 @@ Agent Governance adds that.
 * Approvers get an email, a webhook message if you set one, and a notice, and see the call under Tools > AI Agents with a **dry-run preview**: each field before and after, for posts, pages, terms, users, settings and plugins. Abilities can add their own preview; the rest show what the ability says it does.
 * Approve runs the call as the user the agent signed in as. Reject sends the agent your reason. Requests nobody decides expire after a day.
 * An agent can never approve its own request: deciding is refused through application passwords and MCP.
+* An approved call runs as the user the agent signed in as, so a request made with an application password that was revoked since is refused and ends. If User Session Manager reports a sign-in that was not the person's, or a sign-out everywhere, the requests their application passwords still hold expire.
 
 **Policies:**
 
@@ -39,6 +40,13 @@ Agent Governance adds that.
 
 * Every agent call: who, what, the input (with passwords, tokens and keys removed), the outcome and how long it took. Calls another plugin refused, such as Axle Read-Only Mode during a freeze, are in the log too.
 * Calls are grouped into sessions. **Roll back session** restores each post the agent edited to the revision saved before its first change and moves posts it created to the trash, after showing you the plan. Other changes are listed as not reversible here.
+
+**Agent changes, in the editor:**
+
+* Open a post an agent changed and the sidebar says "Content assistant changed this 2 hours ago", with **View changes** (each field before and after) and **Undo this change**. It undoes this post only, not the whole session.
+* If a person saved the post since, it warns first, and **Undo anyway** is a second, explicit click. What the post is now stays in its revisions, so the undo can be undone.
+* When a request is held on the post, approvers see it there with **Approve** and **Reject**.
+* The panel is only for people who can edit the post. Nobody sees a change, an agent or a held request on something they could not edit themselves.
 
 **Try a policy before you switch it on:**
 
@@ -53,7 +61,7 @@ Agent Governance adds that.
 **Evidence:**
 
 * Download a session as a JSON file with its calls, decisions, approvers and timings, signed by your site. `wp agent-governance verify-evidence` says whether it changed.
-* Approvers see the number of waiting requests in the admin bar and in the browser tab title, which follows the queue without a reload.
+* Approvers see the number of waiting requests in the admin bar (also on phones), the menu, the notice and the browser tab title, which follows the queue without a reload. The number counts only the requests that person may open and decide, so one approver never learns about another's.
 
 **Approvals where people are:**
 
@@ -75,7 +83,7 @@ Only if you set a webhook address on the Policies tab, the plugin posts a messag
 
 = Privacy =
 
-The log and the queue hold user IDs, IP addresses and what agents sent. Inputs are stored with secret-looking keys removed, except for a held call, which keeps its full input until it is decided so it can run as sent. The plugin takes part in Tools > Export Personal Data and Tools > Erase Personal Data (which keeps a record that calls happened, without the user, IP address or input), adds suggested text to Settings > Privacy, and deletes log entries after 30 days.
+The log and the queue hold user IDs, IP addresses and what agents sent. Inputs are stored with secret-looking keys removed, except for a held call, which keeps its full input until it is decided so it can run as sent. When someone undoes an agent change, their user ID is kept with that change. The plugin takes part in Tools > Export Personal Data and Tools > Erase Personal Data (which keeps a record that calls happened, without the user, IP address or input, and removes a person from the changes they undid), adds suggested text to Settings > Privacy, and deletes log entries after 30 days.
 
 = WP-CLI =
 
@@ -83,6 +91,7 @@ The log and the queue hold user IDs, IP addresses and what agents sent. Inputs a
 * `wp agent-governance log [--identity=<agent>] [--status=<status>]` lists agent calls.
 * `wp agent-governance pause` and `resume` stop and restart agent writes.
 * `wp agent-governance rollback <agent> [--since=<when>] [--dry-run]` rolls back what an agent changed.
+* `wp agent-governance post-changes <post_id>` shows the latest agent change to a post, and `undo-change <post_id> [--force]` undoes it for that post only.
 * `wp agent-governance simulate --policy=<file> --days=<n>` tries a draft policy on past calls. `evidence <session>` and `verify-evidence <file>` write and check signed session evidence.
 * `wp agent-governance rules`, `add-rule`, `delete-rule`, `settings`, `sessions` and `cleanup` cover the rest.
 
@@ -107,6 +116,18 @@ Posts, pages and other post types: edits go back to the revision saved just befo
 = What counts as an agent call? =
 
 Calls through the MCP adapter, over HTTP or `wp mcp-adapter serve`, and REST requests signed in with an application password. A person signed in to wp-admin is not an agent, even when a screen calls the Abilities REST API with the login cookie, so their calls run straight away and are not logged. The `agent_governance_is_agent_request` filter changes that, for example for agents that sign in through a JWT or OAuth plugin.
+
+= Can I undo one post an agent changed, without rolling back the session? =
+
+Yes. Open the post in the editor. If an agent changed it, the sidebar has an Agent changes panel with Undo this change. It puts that post back as it was before the agent's latest call, or moves a post the agent created to the trash. If somebody saved the post after the agent did, you are told first and have to choose Undo anyway. WP-CLI has `undo-change` and there is an ability for it, which agents cannot use.
+
+= Why does another approver see a different number of waiting requests? =
+
+Each number counts only the requests that person could open and decide. Having the approver capability is not enough: they also need to be able to edit what the call touches. So one approver may see 3 waiting and another 1, and the second sees no titles of the other two.
+
+= What happens to a request when its application password is revoked? =
+
+Approving it is refused and the request ends, since the call would run as that user. Rejecting still works. The same happens to the waiting requests of a person who reports a sign-in that was not theirs in User Session Manager.
 
 = Does it slow down people using wp-admin? =
 
@@ -139,10 +160,11 @@ Yes, per site. Each site has its own policies, queue and log.
 == Screenshots ==
 
 1. The approval queue: agent calls waiting for a person, with what each would do.
-2. A held request with its dry-run preview, before approving or rejecting it.
+2. A held request with its dry-run preview and the decision right below it, before approving or rejecting it.
 3. Activity: every agent call and its outcome, with filters.
 4. Reviewing an agent session before rolling it back.
-5. Policies: rules per agent, user or role, the defaults, the rate limit and notifications, with Try this policy.
+5. Policies: rules per agent, user or role, the defaults, limits, notifications and webhook in their own cards, with Try this policy.
+6. The block editor: "Content assistant changed this", what changed, and Undo this change for this post only.
 
 == Changelog ==
 

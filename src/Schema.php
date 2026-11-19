@@ -18,7 +18,7 @@ defined( 'ABSPATH' ) || exit;
  */
 final class Schema {
 
-	public const DB_VERSION        = '1';
+	public const DB_VERSION        = '2';
 	public const DB_VERSION_OPTION = 'agent_governance_db_version';
 	public const CAPABILITY        = 'agent_governance_approve';
 	public const CRON_HOOK         = 'agent_governance_cleanup';
@@ -41,6 +41,16 @@ final class Schema {
 	public static function requests_table(): string {
 		global $wpdb;
 		return $wpdb->prefix . 'agent_governance_requests';
+	}
+
+	/**
+	 * The table that points from a post to the agent calls that changed it.
+	 *
+	 * @return string
+	 */
+	public static function posts_table(): string {
+		global $wpdb;
+		return $wpdb->prefix . 'agent_governance_posts';
 	}
 
 	/**
@@ -133,7 +143,11 @@ final class Schema {
 	 * Creates the tables and grants the capability.
 	 */
 	public static function install(): void {
+		$from = (string) get_option( self::DB_VERSION_OPTION, '' );
 		self::create_tables();
+		if ( '' !== $from && version_compare( $from, '2', '<' ) ) {
+			self::backfill_objects();
+		}
 		self::grant_capability();
 		update_option( self::DB_VERSION_OPTION, self::DB_VERSION, false );
 
@@ -177,6 +191,7 @@ final class Schema {
 		$charset = $wpdb->get_charset_collate();
 		$log     = self::log_table();
 		$queue   = self::requests_table();
+		$posts   = self::posts_table();
 
 		dbDelta(
 			"CREATE TABLE {$log} (
@@ -228,23 +243,69 @@ final class Schema {
 				reason text NULL,
 				result longtext NULL,
 				dry_run longtext NULL,
+				object_type varchar(40) NOT NULL default '',
+				object_id bigint(20) unsigned NOT NULL default 0,
 				PRIMARY KEY  (id),
+				KEY object (object_id,status),
 				KEY status_created (status,created),
 				KEY identity (identity),
 				KEY user_id (user_id)
 			) {$charset};"
 		);
+
+		// One row per post an agent call changed: the call, when and how, and whether it was undone since.
+		dbDelta(
+			"CREATE TABLE {$posts} (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				post_id bigint(20) unsigned NOT NULL default 0,
+				log_id bigint(20) unsigned NOT NULL default 0,
+				created datetime NOT NULL default '0000-00-00 00:00:00',
+				action varchar(10) NOT NULL default '',
+				undone datetime NULL,
+				undone_by bigint(20) unsigned NOT NULL default 0,
+				PRIMARY KEY  (id),
+				KEY post_created (post_id,created),
+				KEY log_id (log_id),
+				KEY created (created)
+			) {$charset};"
+		);
+	}
+
+
+	/**
+	 * Fills the object columns of requests that were held before they existed,
+	 * so the editor finds the ones still waiting. Decided requests are left alone.
+	 */
+	private static function backfill_objects(): void {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-off upgrade of the plugin's own table.
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT id, dry_run FROM %i WHERE status = %s AND object_id = 0 ORDER BY id DESC LIMIT 1000', self::requests_table(), Requests::PENDING ), ARRAY_A );
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			$object = Requests::object_of( (string) $row['dry_run'] );
+			if ( $object['id'] > 0 ) {
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- One-off upgrade of the plugin's own table.
+				$wpdb->update(
+					self::requests_table(),
+					array(
+						'object_type' => $object['type'],
+						'object_id'   => $object['id'],
+					),
+					array( 'id' => (int) $row['id'] )
+				);
+			}
+		}
 	}
 
 	/**
-	 * Whether both tables exist, for Site Health.
+	 * Whether all three tables exist, for Site Health.
 	 *
 	 * @return bool
 	 */
 	public static function tables_exist(): bool {
 		global $wpdb;
 
-		foreach ( array( self::log_table(), self::requests_table() ) as $table ) {
+		foreach ( array( self::log_table(), self::requests_table(), self::posts_table() ) as $table ) {
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Checks the plugin's own table, for Site Health.
 			if ( $table !== $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $wpdb->esc_like( $table ) ) ) ) {
 				return false;

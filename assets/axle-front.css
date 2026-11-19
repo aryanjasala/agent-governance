@@ -1,0 +1,189 @@
+/*
+ * Axle front-end bar: a strip in the admin bar's colours for front-end states
+ * (a preview, a time-travel view). Loaded by AxleUi::enqueue_front().
+ * Markup: <div class="axle-front-bar axle-front-bar--bottom wp-core-ui" role="region" aria-label="…">
+ *           <p class="axle-front-bar__text">…</p>
+ *           <p class="axle-front-bar__actions"><a class="button" href="…">…</a></p>
+ *         </div>
+ * Theme CSS is reverted inside the bar; core's buttons.css still applies.
+ * Generated from _dev/repo-template. Do not edit it in a plugin.
+ */
+
+.axle-front-bar,
+.axle-front-bar *:not(path),
+.axle-front-bar ::before,
+.axle-front-bar ::after {
+	all: revert;
+	box-sizing: border-box;
+}
+
+.axle-front-bar.axle-front-bar {
+	position: fixed;
+	left: 0;
+	right: 0;
+	z-index: 99998;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px 12px;
+	min-height: 32px;
+	margin: 0;
+	padding: 6px max(12px, env(safe-area-inset-right, 0px)) 6px max(12px, env(safe-area-inset-left, 0px));
+	background: #1d2327;
+	color: #f0f0f1;
+	font: 400 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+	text-align: left;
+	-webkit-font-smoothing: subpixel-antialiased;
+}
+
+.axle-front-bar.axle-front-bar--top {
+	top: var(--axle-admin-bar, 0px);
+}
+
+.axle-front-bar.axle-front-bar--bottom {
+	bottom: 0;
+	padding-bottom: max(6px, env(safe-area-inset-bottom, 0px));
+}
+
+.axle-front-bar .axle-front-bar__text {
+	flex: 1 1 16em;
+	min-width: 0;
+	margin: 0;
+}
+
+.axle-front-bar .axle-front-bar__text strong {
+	font-weight: 600;
+}
+
+.axle-front-bar .axle-front-bar__actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 0;
+}
+
+.axle-front-bar a:not(.button) {
+	color: #72aee6;
+	text-decoration: underline;
+}
+
+.axle-front-bar a:not(.button):hover,
+.axle-front-bar a:not(.button):focus {
+	color: #fff;
+}
+
+.axle-front-bar :focus-visible {
+	outline: 2px solid #72aee6;
+	outline-offset: 2px;
+}
+
+.axle-front-bar .dashicons {
+	font-family: dashicons;
+	font-size: 20px;
+	line-height: 1;
+	width: 20px;
+	height: 20px;
+	vertical-align: middle;
+}
+
+.axle-front-bar label {
+	margin-right: 4px;
+}
+
+.axle-front-bar select,
+.axle-front-bar input[type="date"],
+.axle-front-bar input[type="time"],
+.axle-front-bar input[type="text"] {
+	min-height: 30px;
+	padding: 0 8px;
+	border: 1px solid #8c8f94;
+	border-radius: 4px;
+	background: #fff;
+	color: #2c3338;
+	font: inherit;
+	font-size: 13px;
+}
+
+.axle-front-bar select {
+	padding-right: 24px;
+}
+
+.axle-front-bar details {
+	position: relative;
+}
+
+.axle-front-bar summary {
+	cursor: pointer;
+}
+
+.axle-front-bar .axle-front-bar__menu {
+	position: absolute;
+	right: 0;
+	bottom: calc(100% + 8px);
+	min-width: 220px;
+	margin: 0;
+	padding: 8px 0;
+	list-style: none;
+	background: #2c3338;
+	box-shadow: 0 3px 5px rgba(0, 0, 0, 0.2);
+}
+
+.axle-front-bar--top .axle-front-bar__menu {
+	top: calc(100% + 8px);
+	bottom: auto;
+}
+
+.axle-front-bar .axle-front-bar__menu a,
+.axle-front-bar .axle-front-bar__menu button {
+	display: block;
+	width: 100%;
+	padding: 6px 12px;
+	border: 0;
+	background: none;
+	color: #f0f0f1;
+	font: inherit;
+	text-align: left;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.axle-front-bar .axle-front-bar__menu a:hover,
+.axle-front-bar .axle-front-bar__menu a:focus,
+.axle-front-bar .axle-front-bar__menu button:hover,
+.axle-front-bar .axle-front-bar__menu button:focus {
+	color: #72aee6;
+	background: #1d2327;
+}
+
+/* Space for the bar, so it never covers the end or the start of the page. */
+html.axle-has-front-bar-bottom body::after {
+	content: "";
+	display: block;
+	height: var(--axle-front-bar-bottom, 0px);
+}
+
+html.axle-has-front-bar-top body::before {
+	content: "";
+	display: block;
+	height: var(--axle-front-bar-top, 0px);
+}
+
+@media screen and (max-width: 782px) {
+	.axle-front-bar.axle-front-bar {
+		min-height: 46px;
+		font-size: 14px;
+	}
+}
+
+@media screen and (max-width: 600px) {
+	.axle-front-bar.axle-front-bar--top {
+		position: absolute;
+	}
+}
+
+@media print {
+	.axle-front-bar.axle-front-bar {
+		display: none;
+	}
+}

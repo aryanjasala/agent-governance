@@ -214,6 +214,92 @@ final class Rollback {
 	}
 
 	/**
+	 * Undoes what one agent call did to one post: puts it back as it was just
+	 * before that call, or moves a post the call created to the trash.
+	 *
+	 * Refuses when the person is not allowed to change the post (they may not even
+	 * learn its title from the error), and, unless forced, when somebody saved the
+	 * post after the call. A forced undo keeps that later version as a revision first.
+	 *
+	 * @param array $row     The log row of the call.
+	 * @param int   $post_id The post.
+	 * @param bool  $force   Undo although the post was edited since.
+	 * @return array{action: string, post_id: int}|\WP_Error
+	 */
+	public function undo_post( array $row, int $post_id, bool $force = false ) {
+		$changes = json_decode( (string) ( $row['changes'] ?? '' ), true );
+		$found   = null;
+		foreach ( is_array( $changes ) ? $changes : array() as $change ) {
+			if ( (int) ( $change['post_id'] ?? 0 ) === $post_id && 'deleted' !== ( $change['action'] ?? '' ) ) {
+				$found = $change;
+				break;
+			}
+		}
+
+		$post = get_post( $post_id );
+		if ( ! $found || ! $post ) {
+			return new \WP_Error( 'agent_governance_nothing_to_undo', __( 'There is nothing to undo for this post.', 'agent-governance' ), array( 'status' => 404 ) );
+		}
+
+		$item = $this->item( $post_id, $found );
+		if ( ! empty( $item['denied'] ) ) {
+			return new \WP_Error( 'agent_governance_forbidden', __( 'You are not allowed to change this post.', 'agent-governance' ), array( 'status' => 403 ) );
+		}
+		if ( ! $item['possible'] ) {
+			return new \WP_Error( 'agent_governance_cannot_undo', (string) $item['note'], array( 'status' => 409 ) );
+		}
+
+		if ( ! $force && self::edited_since( $post, $row ) ) {
+			return new \WP_Error( 'agent_governance_edited_since', __( 'Somebody saved this post after the agent changed it. Undoing now would also remove their changes.', 'agent-governance' ), array( 'status' => 409 ) );
+		}
+
+		if ( 'trash' === $item['action'] ) {
+			if ( ! wp_trash_post( $post_id ) ) {
+				return new \WP_Error( 'agent_governance_undo_failed', __( 'The post could not be moved to the trash.', 'agent-governance' ), array( 'status' => 500 ) );
+			}
+
+			return array(
+				'action'  => 'trashed',
+				'post_id' => $post_id,
+			);
+		}
+
+		// What the post is now stays in its revisions, so the undo can be undone.
+		if ( post_type_supports( $post->post_type, 'revisions' ) && wp_revisions_enabled( $post ) ) {
+			wp_save_post_revision( $post_id );
+		}
+
+		if ( ! $this->restore( $item ) ) {
+			return new \WP_Error( 'agent_governance_undo_failed', __( 'The post could not be restored.', 'agent-governance' ), array( 'status' => 500 ) );
+		}
+
+		return array(
+			'action'  => 'restored',
+			'post_id' => $post_id,
+		);
+	}
+
+	/**
+	 * Whether the post was saved after an agent call finished, by somebody else.
+	 *
+	 * @param \WP_Post $post The post.
+	 * @param array    $row  The log row of the call.
+	 * @return bool
+	 */
+	public static function edited_since( $post, array $row ): bool {
+		/**
+		 * Filters how many seconds after a call was logged a save still counts as the call's own.
+		 *
+		 * @param int $seconds Default 5.
+		 */
+		$slack    = max( 0, (int) apply_filters( 'agent_governance_edited_since_slack', 5 ) );
+		$modified = (int) strtotime( (string) $post->post_modified_gmt . ' UTC' );
+		$logged   = (int) strtotime( (string) $row['created'] . ' UTC' );
+
+		return $modified > $logged + $slack;
+	}
+
+	/**
 	 * Whether the signed-in person may roll this post back. WP-CLI and cron have
 	 * no signed-in person and are trusted, as they are everywhere else.
 	 *

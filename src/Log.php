@@ -111,6 +111,21 @@ final class Log {
 	}
 
 	/**
+	 * One row.
+	 *
+	 * @param int $id Row ID.
+	 * @return array|null
+	 */
+	public function get( int $id ): ?array {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The plugin's own table, read when one change is undone.
+		$row = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM %i WHERE id = %d', Schema::log_table(), $id ), ARRAY_A );
+
+		return is_array( $row ) ? $row : null;
+	}
+
+	/**
 	 * Session key for the next call of an identity.
 	 *
 	 * Reuses the identity's last session when its last call was within the gap.

@@ -52,8 +52,40 @@
 }
 
 @media (max-width: 1100px) {
+	/* One column, in the order a person needs: what it changes, the decision, then the facts and the raw input. */
 	.agg-columns {
-		grid-template-columns: minmax(0, 1fr);
+		display: flex;
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	.agg-main,
+	.agg-side {
+		display: contents;
+	}
+
+	.agg-no-access {
+		order: 0;
+	}
+
+	.agg-preview {
+		order: 1;
+	}
+
+	.agg-decide {
+		order: 2;
+	}
+
+	.agg-facts-card {
+		order: 3;
+	}
+
+	.agg-input {
+		order: 4;
+	}
+
+	.agg-result {
+		order: 5;
 	}
 }
 
@@ -73,8 +105,28 @@
 	font-weight: 400;
 }
 
-.agg-diff th {
-	width: 22%;
+.agg-field {
+	margin: 0 0 14px;
+}
+
+.agg-field__name {
+	margin: 0 0 4px;
+	font-size: 13px;
+}
+
+.agg-field__diff del,
+.agg-field__diff ins {
+	max-height: 260px;
+	overflow: auto;
+}
+
+.agg-input__summary {
+	cursor: pointer;
+	margin: 0;
+}
+
+.agg-input[open] .agg-input__summary {
+	margin-bottom: 8px;
 }
 
 .agg-text-diff table.diff {
@@ -211,4 +263,30 @@
 /* The shared danger button text (#d63638) is 4.4:1 on core's grey button, under the 4.5:1 AA bar. Use the darker error text until axle-ui.css does. */
 .agg-wrap .button.axle-button--danger {
 	color: var(--axle-error-text);
+}
+
+/* Policies: a jump list to each card. */
+.agg-jump {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px 12px;
+	margin: 0 0 16px;
+}
+
+.agg-jump__label {
+	font-weight: 600;
+}
+
+.agg-jump__list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 16px;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.agg-policies .axle-card {
+	scroll-margin-top: 48px;
 }

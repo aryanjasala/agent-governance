@@ -119,6 +119,20 @@ final class Plugin {
 	private Evidence $evidence;
 
 	/**
+	 * From a post to the agent calls that changed it.
+	 *
+	 * @var PostIndex
+	 */
+	private PostIndex $post_index;
+
+	/**
+	 * The editor panel's back end.
+	 *
+	 * @var Editor
+	 */
+	private Editor $editor;
+
+	/**
 	 * Starts the plugin. Runs on `plugins_loaded`.
 	 */
 	public static function boot(): void {
@@ -161,6 +175,8 @@ final class Plugin {
 		$this->simulator   = new Simulator( $this->settings, $this->log );
 		$this->suggestions = new Suggestions( $this->settings, $this->requests, $this->simulator );
 		$this->evidence    = new Evidence( $this->log, $this->requests );
+		$this->post_index  = new PostIndex( $this->settings );
+		$this->editor      = new Editor( $this->post_index, $this->log, $this->requests, $this->approvals, $this->rollback, $this->classifier );
 	}
 
 	/**
@@ -200,6 +216,24 @@ final class Plugin {
 	}
 
 	/**
+	 * The editor panel's back end, for other plugins and WP-CLI.
+	 *
+	 * @return Editor
+	 */
+	public function editor(): Editor {
+		return $this->editor;
+	}
+
+	/**
+	 * The index from posts to agent calls, for other plugins and WP-CLI.
+	 *
+	 * @return PostIndex
+	 */
+	public function post_index(): PostIndex {
+		return $this->post_index;
+	}
+
+	/**
 	 * Registers the services.
 	 */
 	private function register(): void {
@@ -215,9 +249,12 @@ final class Plugin {
 			new Preferences(),
 			new Cleanup( $this->settings, $this->log, $this->requests, $this->approvals ),
 			new Privacy( $this->settings, $this->log, $this->requests ),
-			new Abilities( $this->requests, $this->approvals, $this->classifier, $this->simulator, $this->evidence, $this->settings ),
+			new Abilities( $this->requests, $this->approvals, $this->classifier, $this->simulator, $this->evidence, $this->settings, $this->editor ),
 			new Page( $this->settings, $this->log, $this->requests, $this->approvals, $this->rollback, $this->suggestions, $this->simulator, $this->evidence ),
 			new SiteHealth( $this->settings, $this->requests ),
+			$this->post_index,
+			$this->editor,
+			new SessionSignals( $this->approvals ),
 		);
 
 		foreach ( $services as $service ) {
@@ -228,7 +265,7 @@ final class Plugin {
 		add_action( 'shutdown', array( $this->gate, 'close_open_frames' ), 0 );
 
 		if ( defined( 'WP_CLI' ) && WP_CLI ) {
-			\WP_CLI::add_command( 'agent-governance', new Command( $this->settings, $this->log, $this->requests, $this->approvals, $this->rollback, $this->simulator, $this->evidence, $this->notifier ) );
+			\WP_CLI::add_command( 'agent-governance', new Command( $this->settings, $this->log, $this->requests, $this->approvals, $this->rollback, $this->simulator, $this->evidence, $this->notifier, $this->editor ) );
 		}
 	}
 }

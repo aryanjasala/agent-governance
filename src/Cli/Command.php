@@ -10,6 +10,7 @@ namespace AryanX\Axle\AgentGovernance\Cli;
 use AryanX\Axle\AgentGovernance\Approvals;
 use AryanX\Axle\AgentGovernance\Capability;
 use AryanX\Axle\AgentGovernance\Cleanup;
+use AryanX\Axle\AgentGovernance\Editor;
 use AryanX\Axle\AgentGovernance\Evidence;
 use AryanX\Axle\AgentGovernance\Log;
 use AryanX\Axle\AgentGovernance\Notifier;
@@ -93,6 +94,13 @@ final class Command {
 	private Evidence $evidence;
 
 	/**
+	 * The editor panel's back end.
+	 *
+	 * @var Editor|null
+	 */
+	private ?Editor $editor;
+
+	/**
 	 * Sets up the command.
 	 *
 	 * @param Settings  $settings  Settings.
@@ -103,8 +111,10 @@ final class Command {
 	 * @param Simulator $simulator Replays the log against a policy.
 	 * @param Evidence  $evidence  Signed session evidence.
 	 * @param Notifier  $notifier  Tells approvers.
+	 * @param Editor    $editor    The editor panel's back end, for single-post undo.
 	 */
-	public function __construct( Settings $settings, Log $log, Requests $requests, Approvals $approvals, Rollback $rollback, Simulator $simulator, Evidence $evidence, ?Notifier $notifier = null ) {
+	public function __construct( Settings $settings, Log $log, Requests $requests, Approvals $approvals, Rollback $rollback, Simulator $simulator, Evidence $evidence, ?Notifier $notifier = null, ?Editor $editor = null ) {
+		$this->editor    = $editor;
 		$this->notifier  = $notifier;
 		$this->settings  = $settings;
 		$this->log       = $log;
@@ -453,6 +463,90 @@ final class Command {
 		\WP_CLI::confirm( 'Roll back these changes?', $assoc_args );
 		$result = $this->rollback->run( $plan, $scope );
 		\WP_CLI::success( sprintf( 'Restored %d, moved to the trash %d, failed %d, skipped %d.', $result['restored'], $result['trashed'], $result['failed'], $result['skipped'] ) );
+	}
+
+	/**
+	 * Shows the latest agent change to a post.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <post_id>
+	 * : Post ID.
+	 *
+	 * [--format=<format>]
+	 * : Output format.
+	 * ---
+	 * default: yaml
+	 * options:
+	 *   - json
+	 *   - yaml
+	 * ---
+	 *
+	 * @subcommand post-changes
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Options.
+	 */
+	public function post_changes( $args, $assoc_args ): void {
+		$post = get_post( (int) $args[0] );
+		if ( ! $post || ! $this->editor ) {
+			\WP_CLI::error( 'No post with that ID.' );
+			return;
+		}
+
+		// WP-CLI has no signed-in person, so this shows the change; held requests need an approver and are left out.
+		$data = $this->editor->state( $post, 0 )['change'];
+		if ( null === $data ) {
+			\WP_CLI::success( 'No agent has changed this post.' );
+			return;
+		}
+
+		if ( 'json' === ( $assoc_args['format'] ?? 'yaml' ) ) {
+			\WP_CLI::line( (string) wp_json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+			return;
+		}
+
+		\WP_CLI\Utils\format_items( 'yaml', array( $data ), array_keys( $data ) );
+	}
+
+	/**
+	 * Undoes the latest agent change to one post, not the whole session.
+	 *
+	 * Puts the post back as it was just before the agent's call, or moves a post
+	 * the agent created to the trash. Refuses when somebody saved the post after
+	 * the call, unless --force. What the post is now stays in its revisions.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <post_id>
+	 * : Post ID.
+	 *
+	 * [--force]
+	 * : Undo although somebody saved the post since.
+	 *
+	 * [--yes]
+	 * : Do not ask for confirmation.
+	 *
+	 * @subcommand undo-change
+	 *
+	 * @param array $args       Positional arguments.
+	 * @param array $assoc_args Options.
+	 */
+	public function undo_change( $args, $assoc_args ): void {
+		$post_id = (int) $args[0];
+		if ( ! $this->editor || ! get_post( $post_id ) ) {
+			\WP_CLI::error( 'No post with that ID.' );
+			return;
+		}
+
+		\WP_CLI::confirm( sprintf( 'Undo the latest agent change to post %d?', $post_id ), $assoc_args );
+		$result = $this->editor->undo_change( $post_id, 0, ! empty( $assoc_args['force'] ), get_current_user_id() );
+		if ( is_wp_error( $result ) ) {
+			\WP_CLI::error( $result->get_error_message() );
+			return;
+		}
+
+		\WP_CLI::success( sprintf( 'Post %1$d was %2$s.', $post_id, (string) $result['action'] ) );
 	}
 
 	/**

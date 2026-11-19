@@ -165,6 +165,29 @@ While an agent call runs, every post it changes is recorded against the call:
 
 **Roll back session** first shows the plan, then restores each edited post to the revision saved before the agent's first change in the session, with its old status, and moves posts the agent created to the trash. Anything else the session wrote is listed as "not reversible here", with a link to Activity Log with Undo when it is active. Rolled back calls are marked, so a second rollback does nothing.
 
+## Agent changes in the editor
+
+Open a post in the block editor after an agent changed it, and the Document sidebar has an **Agent changes** panel, with a notice above the content:
+
+- **Who and when**: "Content assistant (maria) changed this 2 hours ago", or "created this post".
+- **View changes**: each field the agent changed, title, content, excerpt and status, with the side before and the side after.
+- **Undo this change**: puts this post back as it was just before the agent's latest call, or moves a post the agent created to the trash. It does not touch the agent's other posts; **Rollback** on the Sessions tab still undoes a whole session. What the post is now stays in its revisions first, so the undo can be undone.
+- **A save in between**: when a person saved the post after the agent, the panel says so, and the button is **Undo anyway**. Nothing is undone without that second click. The same refusal comes from WP-CLI (`--force` overrides it) and the ability (`force`).
+- **Unsaved edits**: the buttons wait until you saved, since the next save would otherwise bring the agent's version back.
+- **A held request on this post**: approvers see what it would change, with **Approve** (confirmed in place) and **Reject** (with a reason the agent sees). Approving changes the post, so the panel asks you to reload the editor afterwards.
+
+Who sees what is decided by the server for each post. The panel's routes under `agent-governance/v1/` answer 403, with no data, for a person who cannot edit the post, so the panel never shows a change or a held request on an object its viewer cannot edit. Held requests need the approver capability too, and only those the person may review (`edit_post` of the object) are listed. Undo needs `edit_post`, or `delete_post` for a post the agent created, and `agent_governance_can_undo_change` changes that. Application passwords and MCP can never undo or decide.
+
+The index behind it is the `{prefix}agent_governance_posts` table, written when a call is logged, so a post finds its calls without reading the whole log.
+
+### Waiting counts
+
+The notice, the admin bar item, the menu bubble, the tab title and the Requests tab count only the waiting requests the signed-in person may open and decide. An approver who cannot edit a draft does not count the request that touches it, and sees no title for it. The count is cached per person until a request changes, over the newest 500 waiting requests (`agent_governance_count_scan_limit`). WP-CLI, which has no signed-in person, shows the whole queue.
+
+### Revoked credentials
+
+An approved call runs as the user the agent signed in as, so it is refused, and the request expires, when the application password it was made with was revoked meanwhile, or the user is gone. The check runs when you approve, and again right before the call runs. Rejecting is always possible. If User Session Manager is active, a report of a sign-in that was not theirs (`user_session_manager_not_me_reported`), or a sign-out everywhere (`user_session_manager_user_signed_out_everywhere`), expires the waiting requests that person's application passwords made, since their credentials may be in other hands. `agent_governance_expire_on_session_report` turns that off.
+
 ## Hooks
 
 | Hook | Type | Use |
@@ -237,7 +260,15 @@ While an agent call runs, every post it changes is recorded against the call:
 | `agent_governance_request_approved` | action | `( array $request, int $approver_id )`. Before an approved call runs |
 | `agent_governance_request_rejected` | action | `( array $request, int $approver_id, string $reason )`. A held call was rejected |
 | `agent_governance_request_executed` | action | `( array $request, mixed $result )`. An approved call ran. `status` is `executed` or `failed` |
-| `agent_governance_request_expired` | action | `( array $request )`. A held call expired without a decision |
+| `agent_governance_request_expired` | action | `( array $request, string $reason )`. A held call expired. `$reason` is empty when it only waited too long, and says why when a revoked application password or a session report ended it |
+| `agent_governance_requests_expired_for_user` | action | `( int $user_id, int $expired, string $source )`. A report from User Session Manager (`not_me` or `signed_out_everywhere`) expired requests |
+| `agent_governance_expire_on_session_report` | filter | `( bool $expire, int $user_id, string $source )`. Whether a Session Manager report expires the requests the person's application passwords hold. Default true |
+| `agent_governance_count_scan_limit` | filter | `( int $limit )`. How many of the newest waiting requests are checked when counting what a person may decide. Default 500, 10 to 5000 |
+| `agent_governance_editor_panel` | filter | `( bool $show, WP_Post $post )`. Whether the editor shows the Agent changes panel for a post. Default true. It is only ever offered to people who can edit the post |
+| `agent_governance_can_undo_change` | filter | `( bool $can, int $post_id, int $user_id )`. Whether a person may undo an agent's change to a post. Default: whoever may edit the post, or delete it when the agent created it |
+| `agent_governance_edited_since_slack` | filter | `( int $seconds )`. How long after a call was logged a save still counts as the call's own. Default 5 |
+| `agent_governance_editor_clip` | filter | `( int $length )`. Characters of a field the panel shows on each side. Default 1500, 100 to 20000 |
+| `agent_governance_change_undone` | action | `( int $post_id, int $log_id, int $user_id, string $action )`. One change was undone from the editor, WP-CLI or the ability. `$action` is `restored` or `trashed`; `$user_id` is 0 for WP-CLI |
 | `agent_governance_paused` | action | `( int $user_id )`. Agent writes were paused |
 | `agent_governance_resumed` | action | `( int $user_id )`. Agent writes were allowed again |
 | `agent_governance_session_rolled_back` | action | `( string $scope, array $result, array $plan )`. A session (or an agent's calls since a time) was rolled back. `$result`: `restored`, `trashed`, `failed`, `skipped` |
@@ -258,6 +289,9 @@ The screen's script reads these through `wp.hooks` on each use, so scripts loade
 | `agentGovernance.confirmMessage` | filter | `( message, action, button )`. The question before approve, reject, rollback or pause. Return an empty string to skip it |
 | `agentGovernance.confirmed` | action | `( action, button )`. The person confirmed |
 | `agentGovernance.ruleAdded` | action | `( row )`. A row was added to the rules table |
+| `agentGovernance.editorPanelTitle` | filter | `( title )`. The heading of the editor panel |
+| `agentGovernance.changeUndone` | action | `( postId, action )`. A change was undone in the editor |
+| `agentGovernance.requestDecided` | action | `( requestId, decision )`. A request was approved or rejected in the editor |
 
 ### Examples
 
@@ -297,6 +331,8 @@ On WordPress 6.9 and later, Agent Governance registers [abilities](https://devel
 | `agent-governance/list-my-requests` | Read-only. The calling agent's held requests (its application password, or else its user), newest first. `status`, `limit` | any signed-in user |
 | `agent-governance/list-pending` | Read-only. Requests waiting for a decision. `limit` | an approver |
 | `agent-governance/get-notification-settings` | Read-only. The signed-in approver's own `email`, `reminder` and `notice` settings, and the site's: email, whether a webhook is set (never its address), format, group minutes and reminder hours | an approver |
+| `agent-governance/get-post-changes` | Read-only. The latest agent change to a post (`agent`, `ago`, `fields` before and after, whether it was edited since) and the requests held on it that the person may decide. `post_id` | someone who may edit the post |
+| `agent-governance/undo-post-change` | Destructive. Puts one post back as it was before the agent's latest change, or trashes a post the agent created. `post_id`, `force`. Refused through application passwords and MCP, and while a person saved the post since unless `force` | someone who may edit the post, signed in as themselves |
 | `agent-governance/decide-request` | Destructive. `id`, `decision` (`approve` or `reject`), `reason`. Refused through application passwords and MCP | an approver signed in as themselves |
 | `agent-governance/simulate-policy` | Read-only. Replays the log against a draft: `days`, `rules`, `defaults`, `rate_limit`, `without_rule`. Per agent: counts, changes and example calls. Saves nothing | someone who may change policies |
 | `agent-governance/export-session-evidence` | Read-only. The signed evidence file of a session by `session` | an approver |
@@ -313,6 +349,8 @@ wp agent-governance reject <id> [--reason=<reason>]
 wp agent-governance log [--identity=<agent>] [--status=allowed|denied|held|executed|failed|refused] [--session=<session>] [--limit=<n>] [--format=<format>]
 wp agent-governance sessions [--identity=<agent>] [--format=<format>]
 wp agent-governance rollback <agent> [--since=<when>] [--session=<session>] [--dry-run] [--yes]
+wp agent-governance post-changes <post_id> [--format=json|yaml]   # the latest agent change to one post
+wp agent-governance undo-change <post_id> [--force] [--yes]       # undo it for this post only
 wp agent-governance pause
 wp agent-governance resume
 wp agent-governance status [--format=<format>]
@@ -362,7 +400,8 @@ On a session's review screen, **Download signed evidence** gives a JSON file: th
 | Where | Contents |
 | --- | --- |
 | `{prefix}agent_governance_log` table | One row per agent call: time, identity, agent name, user, session, how it came in, ability or route, method, kind, outcome, reason, result, request ID, duration, IP address, input (secrets removed, cut at 16 KB), the posts it changed, and when it was rolled back |
-| `{prefix}agent_governance_requests` table | One row per held call: time, identity, agent, user, session, ability or route, method, input (full until decided, then with secrets removed), status, who decided and when, reason, result and the dry-run preview |
+| `{prefix}agent_governance_requests` table | One row per held call: time, identity, agent, user, session, ability or route, method, input (full until decided, then with secrets removed), status, who decided and when, reason, result, the dry-run preview and the object it names (type and ID), so a post can find the requests held on it |
+| `{prefix}agent_governance_posts` table | One row per post an agent call created or updated: the post, the log row of the call, when, how, and when and by whom it was undone. Follows the log's retention |
 | `agent_governance_settings` option | Pause, rate limit, retention, notifications and the defaults per kind |
 | `agent_governance_rules` option | Saved rules |
 | `agent_governance_outbox`, `agent_governance_last_notified`, `agent_governance_reminded` and `agent_governance_webhook_status` options | Requests waiting for the end of a burst, when the last message went out, requests already reminded about, and how the last webhook message went. Not loaded on every request |
@@ -370,17 +409,17 @@ On a session's review screen, **Download signed evidence** gives a JSON file: th
 | `agent_governance_db_version` option | Table version. Removed on deactivation, so the next activation sets the capability up again |
 | `agent_governance_approve` capability | Given to administrators on activation. Taken off every role on deactivation and on uninstall, so no role keeps it while the plugin is off |
 
-The `agent_governance_flush_notifications` event sends a burst once its group time is over. The `agent_governance_cleanup` cron event runs hourly, reminds approvers about requests close to expiring, and it expires requests that waited too long and deletes log rows and decided requests older than the retention period, 1000 of each per run. The count of waiting requests is cached in the object cache until a request changes.
+The `agent_governance_flush_notifications` event sends a burst once its group time is over. The `agent_governance_cleanup` cron event runs hourly, reminds approvers about requests close to expiring, and it expires requests that waited too long and deletes log rows and decided requests older than the retention period, 1000 of each per run. The count of waiting requests is cached in the object cache per person until a request changes.
 
-Uninstalling drops both tables, deletes the options and user meta, removes the capability and the cron event, on every site of a network.
+Uninstalling drops all three tables, deletes the options and user meta, removes the capability and the cron event, on every site of a network.
 
 ## Privacy
 
 The log and the queue hold user IDs, IP addresses and what agents sent, which can be personal data. So:
 
 - secret-looking input keys are removed before anything reaches the log, and from a held request once it is decided
-- **Tools > Export Personal Data** lists a user's agent calls and held requests, and their notification settings
-- **Tools > Erase Personal Data** removes the user, IP address and input from their calls and requests, keeping a record that the calls happened, and rejects their pending requests
+- **Tools > Export Personal Data** lists a user's agent calls and held requests, the agent changes they undid, and their notification settings
+- **Tools > Erase Personal Data** removes the user, IP address and input from their calls and requests, and their name from the changes they undid, keeping a record that the calls happened, and rejects their pending requests
 - the webhook gets no secrets and, for objects its owner could not open, no details
 - **Settings > Privacy** gets suggested text
 - log entries are deleted after 30 days (`agent_governance_retention_days`), and `agent_governance_client_ip` can keep IP addresses out entirely
@@ -389,6 +428,7 @@ The log and the queue hold user IDs, IP addresses and what agents sent, which ca
 
 - XML-RPC calls with an application password are not checked. Agents use the REST API and the Abilities API.
 - Agents that sign in some other way, such as a JWT or OAuth plugin, are not recognised by default. Mark their requests with `agent_governance_is_agent_request`.
+- Undoing one change in the editor works on the latest agent change to a post. When a person saved the post since, it warns first, and **Undo anyway** keeps what they saved in the revisions.
 - Only post changes can be rolled back here. Options, terms, users, menus and anything deleted permanently are listed as not reversible.
 - A held REST call is sent again with the same route, query and JSON body. Calls that upload files are not replayed with the file.
 - The rate limit counts calls in the log, so it is exact per site but costs a small indexed query per agent call.

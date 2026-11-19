@@ -181,10 +181,11 @@ final class RequestsView {
 			$this->render_preview( is_array( $preview ) ? $preview : array(), $pending );
 			echo '</div>';
 
-			echo '<div class="axle-card agg-card"><h3 class="axle-card__title">' . esc_html__( 'Input', 'agent-governance' ) . '</h3>';
+			// Folded on phones and wherever the preview already says what changes; open when there is no preview to read instead.
+			printf( '<details class="axle-card agg-card agg-input"%s><summary class="axle-card__title agg-input__summary">%s</summary>', is_array( $preview ) && ! empty( $preview['supported'] ) ? '' : ' open', esc_html__( 'Input', 'agent-governance' ) );
 			echo '<p class="description">' . esc_html__( 'What the agent sent. Passwords, tokens and keys are hidden here.', 'agent-governance' ) . '</p>';
 			echo Display::json( \AryanX\Axle\AgentGovernance\Redactor::encode( json_decode( (string) $row['input'], true ), 'input' ) ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped in Display.
-			echo '</div>';
+			echo '</details>';
 
 			if ( null !== $row['result'] && '' !== (string) $row['result'] ) {
 				echo '<div class="axle-card agg-card agg-result"><h3 class="axle-card__title">' . esc_html__( 'Result', 'agent-governance' ) . '</h3>';
@@ -195,7 +196,7 @@ final class RequestsView {
 
 		echo '</div><div class="agg-side">';
 
-		echo '<div class="axle-card agg-card"><dl class="axle-facts agg-facts">';
+		echo '<div class="axle-card agg-card agg-facts-card"><dl class="axle-facts agg-facts">';
 		$facts = array(
 			__( 'Agent', 'agent-governance' )        => esc_html( Log::identity_label( $row ) ),
 			__( 'Signed in as', 'agent-governance' ) => esc_html( $user ? $user->user_login : '#' . (int) $row['user_id'] ),
@@ -338,26 +339,21 @@ final class RequestsView {
 			return;
 		}
 
-		printf( '<div class="axle-scroll" tabindex="0" role="region" aria-label="%s">', esc_attr__( 'Fields this call would change', 'agent-governance' ) );
-		echo '<table class="widefat agg-diff"><thead><tr><th scope="col">' . esc_html__( 'Field', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Change', 'agent-governance' ) . '</th></tr></thead><tbody>';
+		// One block per field, each side labelled: reads the same on a phone as on a wide screen.
+		printf( '<div class="agg-diff" role="group" aria-label="%s">', esc_attr__( 'Fields this call would change', 'agent-governance' ) );
 		foreach ( $changes as $change ) {
 			$before = (string) ( $change['before'] ?? '' );
 			$after  = (string) ( $change['after'] ?? '' );
-			if ( strlen( $before ) > 120 || strlen( $after ) > 120 || false !== strpos( $before . $after, "\n" ) ) {
-				$diff = wp_text_diff( $before, $after, array( 'show_split_view' => true ) );
-				printf( '<tr><th scope="row">%1$s</th><td class="agg-text-diff" dir="ltr">%2$s</td></tr>', esc_html( (string) $change['field'] ), $diff ? wp_kses_post( $diff ) : esc_html__( 'No visible change.', 'agent-governance' ) );
-				continue;
-			}
 			printf(
-				'<tr><th scope="row">%1$s</th><td dir="auto"><div class="axle-diff"><del><span class="screen-reader-text">%4$s</span> %2$s</del><ins><span class="screen-reader-text">%5$s</span> %3$s</ins></div></td></tr>',
+				'<div class="agg-field"><h4 class="agg-field__name">%1$s</h4><div class="axle-diff axle-diff--labelled agg-field__diff" dir="auto"><del data-label="%4$s">%2$s</del><ins data-label="%5$s">%3$s</ins></div></div>',
 				esc_html( (string) $change['field'] ),
 				'' === $before ? '<em>' . esc_html__( 'empty', 'agent-governance' ) . '</em>' : esc_html( $before ),
 				'' === $after ? '<em>' . esc_html__( 'empty', 'agent-governance' ) . '</em>' : esc_html( $after ),
-				esc_html__( 'Before:', 'agent-governance' ),
-				esc_html__( 'After:', 'agent-governance' )
+				esc_attr__( 'Before', 'agent-governance' ),
+				esc_attr__( 'After', 'agent-governance' )
 			);
 		}
-		echo '</tbody></table></div>';
+		echo '</div>';
 	}
 
 	/**

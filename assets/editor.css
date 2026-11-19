@@ -1,0 +1,97 @@
+/* Agent changes panel in the block editor. Uses the editor's own look: components and tokens come from WordPress. */
+
+.agg-editor-panel p {
+	margin: 0 0 8px;
+}
+
+.agg-editor-change__line {
+	font-weight: 600;
+}
+
+.agg-editor-note {
+	color: #50575e;
+	font-size: 12px;
+}
+
+.agg-editor-error {
+	color: #cc1818;
+	font-weight: 500;
+}
+
+.agg-editor-warning {
+	margin: 0 0 8px;
+	padding: 8px 10px;
+	border-inline-start: 4px solid #dba617;
+	background: #fcf9e8;
+	color: #1e1e1e;
+	font-size: 12px;
+}
+
+.agg-editor-fields {
+	margin: 8px 0;
+	max-height: 320px;
+	overflow: auto;
+}
+
+.agg-editor-diff {
+	margin: 0 0 12px;
+}
+
+.agg-editor-diff__side {
+	margin-top: 4px;
+	padding: 6px 8px;
+	border-radius: 2px;
+	border-inline-start: 3px solid transparent;
+	font-size: 12px;
+}
+
+.agg-editor-diff__side--before {
+	background: #fcf0f1;
+	border-inline-start-color: #cc1818;
+}
+
+.agg-editor-diff__side--after {
+	background: #edfaef;
+	border-inline-start-color: #007017;
+}
+
+.agg-editor-diff__label {
+	display: block;
+	margin-bottom: 2px;
+	color: #1e1e1e;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+}
+
+.agg-editor-diff__text {
+	white-space: pre-wrap;
+	word-break: break-word;
+	color: #1e1e1e;
+}
+
+.agg-editor-actions,
+.agg-editor-confirm {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px;
+	margin: 8px 0 0;
+}
+
+.agg-editor-confirm > p,
+.agg-editor-confirm > label,
+.agg-editor-confirm > textarea,
+.agg-editor-actions > p {
+	flex: 1 1 100%;
+}
+
+.agg-editor-held {
+	margin: 0 0 16px;
+	padding: 0 0 12px;
+	border-bottom: 1px solid #dcdcde;
+}
+
+.agg-editor-reload {
+	margin-top: 12px;
+}

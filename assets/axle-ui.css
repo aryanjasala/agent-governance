@@ -446,6 +446,19 @@
 	border-color: var(--axle-good-line);
 }
 
+/* Labelled diff: each side names itself, for comparisons that are not "before and after".
+   <div class="axle-diff axle-diff--labelled"><del data-label="Files">…</del><ins data-label="This site">…</ins></div> */
+
+.axle-ui .axle-diff--labelled del::before,
+.axle-ui .axle-diff--labelled ins::before {
+	content: attr(data-label);
+	display: block;
+	margin-bottom: 2px;
+	font-size: 12px;
+	font-weight: 600;
+	color: #1d2327;
+}
+
 /* Scroll: a wide table inside a card on a narrow screen. <div class="axle-scroll" tabindex="0" role="region" aria-label="…"><table class="widefat striped">…</table></div> */
 
 .axle-ui .axle-scroll {

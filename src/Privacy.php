@@ -105,15 +105,17 @@ final class Privacy implements Service {
 	 * @return array{data: array, done: bool}
 	 */
 	public function export( $email, $page = 1 ): array {
-		$user = get_user_by( 'email', (string) $email );
-		$page = max( 1, (int) $page );
-		$data = array();
-		$done = true;
+		$user   = get_user_by( 'email', (string) $email );
+		$page   = max( 1, (int) $page );
+		$data   = array();
+		$done   = true;
+		$undone = array();
 
 		if ( $user ) {
 			$calls    = $this->log->for_user( (int) $user->ID, $page, self::PER );
 			$requests = $this->requests->for_user( (int) $user->ID, $page, self::PER );
-			$done     = count( $calls ) < self::PER && count( $requests ) < self::PER;
+			$undone   = PostIndex::undone_by( (int) $user->ID, $page, self::PER );
+			$done     = count( $calls ) < self::PER && count( $requests ) < self::PER && count( $undone ) < self::PER;
 
 			if ( 1 === $page ) {
 				$prefs  = Preferences::get( (int) $user->ID );
@@ -199,6 +201,24 @@ final class Privacy implements Service {
 			}
 		}
 
+		foreach ( $undone as $row ) {
+			$data[] = array(
+				'group_id'    => 'agent-governance-undone',
+				'group_label' => __( 'Agent changes you undid', 'agent-governance' ),
+				'item_id'     => 'agent-governance-undone-' . $row['id'],
+				'data'        => array(
+					array(
+						'name'  => __( 'Time (UTC)', 'agent-governance' ),
+						'value' => (string) $row['undone'],
+					),
+					array(
+						'name'  => __( 'Post ID', 'agent-governance' ),
+						'value' => (string) (int) $row['post_id'],
+					),
+				),
+			);
+		}
+
 		return array(
 			'data' => $data,
 			'done' => $done,
@@ -228,13 +248,14 @@ final class Privacy implements Service {
 
 		$calls    = $this->log->anonymize_user( (int) $user->ID, 500 );
 		$requests = $this->requests->anonymize_user( (int) $user->ID, 500 );
-		$changed  = $calls + $requests;
+		$undone   = PostIndex::anonymize_user( (int) $user->ID, 500 );
+		$changed  = $calls + $requests + $undone;
 
 		return array(
 			'items_removed'  => $changed > 0,
 			'items_retained' => $changed > 0,
 			'messages'       => $changed > 0 ? array( __( 'AI agent calls were kept without the user, IP address and input, as a record that they happened.', 'agent-governance' ) ) : array(),
-			'done'           => $calls < 500 && $requests < 500,
+			'done'           => $calls < 500 && $requests < 500 && $undone < 500,
 		);
 	}
 

@@ -42,7 +42,7 @@ test( 'demo: an agent edit is held, reviewed and approved', async ( { browser } 
 			// What would change, before and after.
 			await demo.click( page.locator( '.agg-requests .row-title' ).first(), 300 );
 			await expect( page.locator( '.agg-diff' ) ).toBeVisible();
-			await demo.moveTo( page.locator( '.agg-diff tbody tr' ).first() );
+			await demo.moveTo( page.locator( '.agg-field' ).first() );
 			await demo.pause( 2500 );
 
 			// Approve: it runs now, as Maria.

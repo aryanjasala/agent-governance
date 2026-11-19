@@ -39,12 +39,14 @@ AI agents now work on WordPress through the Abilities API, the MCP adapter and a
 - **Rate limit** per agent with a `Retry-After` header, and a **Pause** button that refuses every agent write while reads keep working
 - **Audit log** of every call with the input (secrets removed), outcome and timing, grouped into **sessions**. Calls another plugin refused, such as Site Read-Only Mode during a freeze, are in it too
 - **Roll back a session**: edited posts go back to the revision saved before the agent touched them, created posts go to the trash, after a preview
+- **Agent changes, in the editor**: open a post an agent changed and the sidebar says "Content assistant changed this 2 hours ago", shows what changed field by field, and offers **Undo this change** for this post only, not the whole session. It warns first when a person saved the post since, and keeps the version it replaces in the revisions. An approver sees a request held on the post with **Approve** and **Reject** right there. Nothing is shown for a post the person cannot edit
+- **Credentials are checked when it counts**: an approved call runs as the agent's user, so a request made with an application password that was revoked since is refused and ends. When a person reports a sign-in that was not theirs, or signs out everywhere, in User Session Manager, the requests their application passwords still hold expire
 - **Try a policy on past calls**: replay the last 30 days of the log against the policy you are editing, and see per agent what would be allowed, held, refused or rate limited, and what changes from today. The replay uses the same decision code as live calls, and nothing is saved
 - **Suggested rules**: when you approve the same kind of call from an agent five times and never reject it, the queue offers an allow rule with the replay result. You accept it, and can undo it
 - **Approvers only see what they could open**: a preview, input or result is hidden, and deciding is refused, when the approver could not edit the post, term or user the call touches
 - **Signed evidence**: download a session as a JSON file with its calls, decisions, approvers and timings, signed by the site, and check it later with WP-CLI
 - **Approvals where people are**: an email and a webhook message (JSON or Slack format) for each waiting request, with what it would change and a link. A burst is grouped into one message, a reminder goes out before a request expires, and each person sets their own email, reminder and notice. Nobody can approve from a link: wp-admin asks you to sign in and confirm
-- **Admin bar and tab title** show how many requests wait, and the tab title follows the queue without a reload
+- **Admin bar, menu, notice and tab title** show how many requests wait for the signed-in person to decide: only requests on things they could open, so one approver never reads a number, or a title, that belongs to another. The tab title follows the queue without a reload, and the admin bar item stays on phones as an icon
 - **Never without an approver**: if a role clean-up takes the approver capability off every role, administrators still approve, and a notice gives it back in one click
 - **Privacy** export and erase, **WP-CLI** for everything, abilities, and a **Site Health** check
 
@@ -84,14 +86,15 @@ wp agent-governance rollback 6f0c2f8e-0a3e-4f53-9d1c-0d6a1f1c4b8a --dry-run
 <table>
   <tr>
     <td width="50%" valign="top"><img src=".wordpress-org/screenshot-1.png" alt="The approval queue: agent calls waiting for a person, with what each would do"><br><sub>The approval queue: agent calls waiting for a person, with what each would do</sub></td>
-    <td width="50%" valign="top"><img src=".wordpress-org/screenshot-2.png" alt="A held request with its dry-run preview, before approving or rejecting it"><br><sub>A held request with its dry-run preview, before approving or rejecting it</sub></td>
+    <td width="50%" valign="top"><img src=".wordpress-org/screenshot-2.png" alt="A held request with its dry-run preview and the decision right below it, before approving or rejecting it"><br><sub>A held request with its dry-run preview and the decision right below it, before approving or rejecting it</sub></td>
   </tr>
   <tr>
     <td width="50%" valign="top"><img src=".wordpress-org/screenshot-3.png" alt="Activity: every agent call and its outcome, with filters"><br><sub>Activity: every agent call and its outcome, with filters</sub></td>
     <td width="50%" valign="top"><img src=".wordpress-org/screenshot-4.png" alt="Reviewing an agent session before rolling it back"><br><sub>Reviewing an agent session before rolling it back</sub></td>
   </tr>
   <tr>
-    <td width="50%" valign="top"><img src=".wordpress-org/screenshot-5.png" alt="Policies: rules per agent, user or role, the defaults, the rate limit and notifications, with Try this policy"><br><sub>Policies: rules per agent, user or role, the defaults, the rate limit and notifications, with Try this policy</sub></td>
+    <td width="50%" valign="top"><img src=".wordpress-org/screenshot-5.png" alt="Policies: rules per agent, user or role, the defaults, limits, notifications and webhook in their own cards, with Try this policy"><br><sub>Policies: rules per agent, user or role, the defaults, limits, notifications and webhook in their own cards, with Try this policy</sub></td>
+    <td width="50%" valign="top"><img src=".wordpress-org/screenshot-6.png" alt="The block editor: "Content assistant changed this", what changed, and Undo this change for this post only"><br><sub>The block editor: "Content assistant changed this", what changed, and Undo this change for this post only</sub></td>
   </tr>
 </table>
 
@@ -126,7 +129,10 @@ src/
 ├── Approvals.php         approve, reject, run, expire
 ├── Log.php               the audit log table and sessions
 ├── Changes.php           post changes per agent call
-├── Rollback.php          session rollback
+├── PostIndex.php         from a post to the calls that changed it
+├── Rollback.php          session rollback, and undo for one post
+├── Editor.php            the editor panel's REST routes
+├── SessionSignals.php    expires requests on Session Manager reports
 ├── Redactor.php          secrets out, size caps
 ├── Notifier.php          email and notice to approvers
 ├── Cleanup.php           the hourly clean-up
@@ -135,7 +141,7 @@ src/
 ├── Admin/                Tools > AI Agents
 ├── Health/SiteHealth.php the Site Health check
 └── Cli/Command.php       wp agent-governance
-assets/                   admin.css, admin.js
+assets/                   admin.css, admin.js, editor.js, editor.css
 tests/
 ├── Unit/                 PHPUnit
 └── e2e/                  Playwright specs, fixture and the Docker site

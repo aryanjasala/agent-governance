@@ -1,0 +1,37 @@
+/*
+ * Axle admin-bar items on phones. Core hides every top-level node it does not
+ * know below 782 px; nodes marked by AxleUi::admin_bar_mobile() stay, as an icon
+ * like core's own (core already hides .ab-label visually at that width).
+ * Generated from _dev/repo-template. Do not edit it in a plugin.
+ */
+
+#wpadminbar li.axle-ab-mobile > .ab-item .ab-icon.dashicons {
+	width: auto;
+	height: auto;
+	font-size: 20px;
+	line-height: 1;
+}
+
+@media screen and (max-width: 782px) {
+	#wpadminbar #wp-toolbar > ul > li.axle-ab-mobile {
+		display: block;
+	}
+
+	#wpadminbar li.axle-ab-mobile > .ab-item {
+		width: 52px;
+		padding: 0;
+		text-align: center;
+		overflow: hidden;
+	}
+
+	#wpadminbar li.axle-ab-mobile > .ab-item .ab-icon.dashicons {
+		font: normal 32px/46px dashicons !important;
+		float: none;
+		display: block;
+		width: 52px;
+		height: 46px;
+		margin: 0;
+		padding: 0;
+		top: 0;
+	}
+}

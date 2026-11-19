@@ -343,3 +343,18 @@ class Agg_Fake_Roles {
 		return $this->role_objects[ $name ] ?? null;
 	}
 }
+
+if ( ! class_exists( 'WP_Application_Passwords' ) ) {
+	/**
+	 * Application passwords, kept in memory: items[user_id][uuid] = item.
+	 */
+	class WP_Application_Passwords {
+
+		/** @var array<int, array<string, array>> */
+		public static $items = array();
+
+		public static function get_user_application_password( $user_id, $uuid ) {
+			return self::$items[ (int) $user_id ][ (string) $uuid ] ?? null;
+		}
+	}
+}

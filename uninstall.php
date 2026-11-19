@@ -32,12 +32,13 @@ function agent_governance_uninstall_site(): void {
 		$agent_governance_role->remove_cap( 'agent_governance_approve' );
 	}
 
-	foreach ( array( 'agent_governance_log', 'agent_governance_requests' ) as $agent_governance_table ) {
+	foreach ( array( 'agent_governance_log', 'agent_governance_requests', 'agent_governance_posts' ) as $agent_governance_table ) {
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange -- Removing the plugin's own table on uninstall.
 		$wpdb->query( $wpdb->prepare( 'DROP TABLE IF EXISTS %i', $wpdb->prefix . $agent_governance_table ) );
 	}
 
 	wp_cache_delete( 'pending_count', 'agent_governance' );
+	wp_cache_delete( 'pending_gen', 'agent_governance' );
 	wp_cache_delete( 'identities', 'agent_governance' );
 }
 
