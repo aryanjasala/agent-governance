@@ -1,6 +1,6 @@
 // Regenerates .wordpress-org/screenshot-N.png (readme.txt "== Screenshots ==" and README.md).
 // Run on demand: npm run screenshots
-const { test, expect, wp } = require( './utils' );
+const { test, expect, wp, openEditor, appPasswordClient } = require( './utils' );
 const { STORAGE_STATE } = require( './utils/config' );
 const { prepareSite, shot } = require( './utils/media' );
 const { removePeople, seedActivity } = require( './seed' );
@@ -56,5 +56,21 @@ test.describe( 'Screenshots', () => {
 		await expect( page.locator( '.agg-rule' ) ).toHaveCount( 4 );
 		await shot( page, 5, { fullPage: true } );
 		wp( 'option', 'delete', 'agent_governance_rules' );
+	} );
+
+	test( '6: an agent change, in the editor', async () => {
+		const id = Number( wp( 'post', 'create', '--post_title=Spring sale: 20% off every bag', '--post_content=Our spring sale runs until 31 March.', '--post_status=publish', '--porcelain' ) );
+		const agent = await appPasswordClient( 'maria', 'Content assistant' );
+		await agent.call( 'POST', `/wp/v2/posts/${ id }`, { content: 'Our spring sale runs until 7 April, and every bag ships free.' } );
+		await openEditor( page, id );
+		const panel = page.locator( '.agg-editor-panel' );
+		await expect( panel ).toContainText( 'changed this' );
+		await panel.getByRole( 'button', { name: 'View changes' } ).click();
+		await expect( panel.locator( '.agg-editor-diff__side--after' ).first() ).toBeVisible();
+		await panel.getByRole( 'heading', { name: 'Agent changes' } ).scrollIntoViewIfNeeded();
+		await page.locator( '.interface-complementary-area' ).evaluate( ( el ) => el.scrollTo( 0, el.scrollHeight ) );
+		await shot( page, 6 );
+		await agent.dispose();
+		wp( 'post', 'delete', String( id ), '--force' );
 	} );
 } );

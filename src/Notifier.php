@@ -7,6 +7,7 @@
 
 namespace AryanX\Axle\AgentGovernance;
 
+use AryanX\Axle\AgentGovernance\Admin\AxleUi;
 use AryanX\Axle\AgentGovernance\Admin\Page;
 
 defined( 'ABSPATH' ) || exit;
@@ -93,7 +94,7 @@ final class Notifier implements Service {
 			return;
 		}
 
-		$count = $this->requests->pending_count();
+		$count = $this->requests->pending_count_for( get_current_user_id() );
 		if ( ! $count ) {
 			return;
 		}
@@ -106,6 +107,8 @@ final class Notifier implements Service {
 				'href'  => Page::url( 'requests' ),
 			)
 		);
+		// Core hides unknown nodes on phones; this keeps it as an icon.
+		AxleUi::admin_bar_mobile( 'agent-governance', 'dashicons-shield' );
 	}
 
 	/**
@@ -118,7 +121,7 @@ final class Notifier implements Service {
 	public function heartbeat( $response, $data = array() ): array {
 		$response = (array) $response;
 		if ( isset( $data['agent_governance'] ) && current_user_can( self::capability() ) ) {
-			$response['agent_governance_pending'] = $this->requests->pending_count();
+			$response['agent_governance_pending'] = $this->requests->pending_count_for( get_current_user_id() );
 		}
 
 		return $response;
@@ -433,7 +436,7 @@ final class Notifier implements Service {
 			return;
 		}
 
-		$count = $this->requests->pending_count();
+		$count = $this->requests->pending_count_for( get_current_user_id() );
 		if ( ! $count ) {
 			return;
 		}

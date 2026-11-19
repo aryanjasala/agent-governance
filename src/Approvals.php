@@ -67,6 +67,13 @@ final class Approvals {
 			return $request;
 		}
 
+		// The call runs as the agent's user, so the credential that made it has to still be good.
+		$gone = self::credential_error( $request );
+		if ( $gone ) {
+			$this->expire( $request, $gone->get_error_message() );
+			return $gone;
+		}
+
 		$now = gmdate( 'Y-m-d H:i:s' );
 		if ( ! $this->requests->update(
 			$id,
@@ -182,29 +189,83 @@ final class Approvals {
 	}
 
 	/**
-	 * Expires one request.
+	 * Expires the requests a person's application passwords made that still wait.
+	 *
+	 * For when that person reports a sign-in that was not theirs, or signs out
+	 * everywhere: what an agent asked with their credentials must not run
+	 * after someone clicks Approve.
+	 *
+	 * @param int    $user_id User whose application passwords made the requests.
+	 * @param string $reason  Why, shown on each request.
+	 * @return int How many expired.
+	 */
+	public function expire_for_user( int $user_id, string $reason ): int {
+		$count = 0;
+		foreach ( $this->requests->pending_for_app_passwords( $user_id ) as $request ) {
+			if ( $this->expire( $request, $reason ) ) {
+				++$count;
+			}
+		}
+
+		return $count;
+	}
+
+	/**
+	 * Why a request cannot run any more because of who made it, if that is so.
+	 *
+	 * An application password that was revoked since the call was held, or a
+	 * user who is gone, ends the request: nothing may run with those credentials.
 	 *
 	 * @param array $request The request row.
+	 * @return \WP_Error|null Null when the credentials are still good.
+	 */
+	public static function credential_error( array $request ): ?\WP_Error {
+		$user_id = (int) $request['user_id'];
+		if ( $user_id > 0 && ! get_userdata( $user_id ) ) {
+			return new \WP_Error( 'agent_governance_user_gone', __( 'The user this agent signed in as no longer exists, so the request cannot run.', 'agent-governance' ), array( 'status' => 410 ) );
+		}
+
+		$identity = (string) $request['identity'];
+		if ( 0 !== strpos( $identity, 'app:' ) ) {
+			return null;
+		}
+
+		$uuid = substr( $identity, 4 );
+		$item = class_exists( 'WP_Application_Passwords' ) ? \WP_Application_Passwords::get_user_application_password( $user_id, $uuid ) : null;
+		if ( is_array( $item ) ) {
+			return null;
+		}
+
+		return new \WP_Error( 'agent_governance_credential_revoked', __( 'The application password this agent used was revoked, so the request cannot run. The agent has to ask again with a valid one.', 'agent-governance' ), array( 'status' => 410 ) );
+	}
+
+	/**
+	 * Expires one request.
+	 *
+	 * @param array  $request The request row.
+	 * @param string $reason  Why, when it did not simply wait too long.
 	 * @return bool Whether it was still pending.
 	 */
-	public function expire( array $request ): bool {
-		$changed = $this->requests->update(
-			(int) $request['id'],
-			array(
-				'status'     => Requests::EXPIRED,
-				'decided_at' => gmdate( 'Y-m-d H:i:s' ),
-				'input'      => Redactor::encode( json_decode( (string) $request['input'], true ), 'input' ),
-			),
-			Requests::PENDING
+	public function expire( array $request, string $reason = '' ): bool {
+		$changes = array(
+			'status'     => Requests::EXPIRED,
+			'decided_at' => gmdate( 'Y-m-d H:i:s' ),
+			'input'      => Redactor::encode( json_decode( (string) $request['input'], true ), 'input' ),
 		);
+		if ( '' !== $reason ) {
+			$changes['reason'] = $reason;
+		}
+
+		$changed = $this->requests->update( (int) $request['id'], $changes, Requests::PENDING );
 
 		if ( $changed ) {
 			/**
 			 * Fires when a held request expired without a decision.
 			 *
-			 * @param array $request The request row, as it was while pending.
+			 * @param array  $request The request row, as it was while pending.
+			 * @param string $reason  Why, when it was not just the waiting time. Empty otherwise.
 			 */
-			do_action( 'agent_governance_request_expired', $request );
+			do_action( 'agent_governance_request_expired', $request, $reason );
 		}
 
 		return $changed;
@@ -247,6 +308,12 @@ final class Approvals {
 	 * @return mixed What the ability or route returned.
 	 */
 	public function execute( array $request ) {
+		// Last look before anything runs: the credential may have been revoked while the request was approved.
+		$gone = self::credential_error( $request );
+		if ( $gone ) {
+			return $gone;
+		}
+
 		$input    = json_decode( (string) $request['input'], true );
 		$previous = get_current_user_id();
 

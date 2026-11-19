@@ -65,6 +65,13 @@ final class Abilities implements Service {
 	private ?Settings $settings;
 
 	/**
+	 * The editor panel's back end, for the post change abilities.
+	 *
+	 * @var Editor|null
+	 */
+	private ?Editor $editor;
+
+	/**
 	 * Sets up the abilities.
 	 *
 	 * @param Requests   $requests   The approval queue.
@@ -73,8 +80,10 @@ final class Abilities implements Service {
 	 * @param Simulator  $simulator  Replays the log against a policy.
 	 * @param Evidence   $evidence   Session evidence files.
 	 * @param Settings   $settings   Settings.
+	 * @param Editor     $editor     The editor panel's back end.
 	 */
-	public function __construct( Requests $requests, Approvals $approvals, Classifier $classifier, ?Simulator $simulator = null, ?Evidence $evidence = null, ?Settings $settings = null ) {
+	public function __construct( Requests $requests, Approvals $approvals, Classifier $classifier, ?Simulator $simulator = null, ?Evidence $evidence = null, ?Settings $settings = null, ?Editor $editor = null ) {
+		$this->editor     = $editor;
 		$this->requests   = $requests;
 		$this->approvals  = $approvals;
 		$this->classifier = $classifier;
@@ -257,6 +266,82 @@ final class Abilities implements Service {
 				'idempotent'  => false,
 			)
 		);
+
+		if ( $this->editor ) {
+			$can_edit = static function ( $input = null ): bool {
+				$id = (int) ( ( (array) $input )['post_id'] ?? 0 );
+
+				return $id > 0 && (bool) get_post( $id ) && current_user_can( 'edit_post', $id );
+			};
+
+			$this->ability(
+				'get-post-changes',
+				__( 'Get the latest agent change to a post', 'agent-governance' ),
+				__( 'Which agent changed this post last and when, with what changed field by field, and the requests held on it that the signed-in person may decide. Only for posts the person may edit.', 'agent-governance' ),
+				array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'post_id' => array(
+							'type'    => 'integer',
+							'minimum' => 1,
+						),
+					),
+					'required'             => array( 'post_id' ),
+					'additionalProperties' => false,
+				),
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'change'   => array( 'type' => array( 'object', 'null' ) ),
+						'requests' => array( 'type' => 'array' ),
+					),
+				),
+				array( $this, 'get_post_changes' ),
+				$can_edit,
+				array(
+					'readonly'   => true,
+					'idempotent' => true,
+				)
+			);
+
+			$this->ability(
+				'undo-post-change',
+				__( 'Undo the latest agent change to a post', 'agent-governance' ),
+				__( 'Puts one post back as it was before the agent\'s latest change to it, or moves a post the agent created to the trash. Refuses when somebody saved the post after the agent did, unless force is true. The version being replaced stays in the revisions. Only for people signed in as themselves who may edit the post: calls through an application password or MCP are refused.', 'agent-governance' ),
+				array(
+					'type'                 => 'object',
+					'properties'           => array(
+						'post_id' => array(
+							'type'    => 'integer',
+							'minimum' => 1,
+						),
+						'force'   => array(
+							'type'    => 'boolean',
+							'default' => false,
+						),
+					),
+					'required'             => array( 'post_id' ),
+					'additionalProperties' => false,
+				),
+				array(
+					'type'       => 'object',
+					'properties' => array(
+						'undone' => array( 'type' => 'boolean' ),
+						'action' => array(
+							'type' => 'string',
+							'enum' => array( 'restored', 'trashed' ),
+						),
+					),
+				),
+				array( $this, 'undo_post_change' ),
+				$can_edit,
+				array(
+					'readonly'    => false,
+					'destructive' => true,
+					'idempotent'  => false,
+				)
+			);
+		}
 
 		if ( $this->simulator ) {
 			$this->ability(
@@ -547,6 +632,37 @@ final class Abilities implements Service {
 			: $this->approvals->reject( $id, $user, (string) ( $input['reason'] ?? '' ) );
 
 		return is_wp_error( $result ) ? $result : self::present( $result );
+	}
+
+	/**
+	 * Ability: the latest agent change to a post.
+	 *
+	 * @param array|null $input Ability input.
+	 * @return array|\WP_Error
+	 */
+	public function get_post_changes( $input = null ) {
+		$post = get_post( (int) ( ( (array) $input )['post_id'] ?? 0 ) );
+		if ( ! $post || ! $this->editor ) {
+			return new \WP_Error( 'agent_governance_nothing_to_undo', __( 'There is nothing to undo for this post.', 'agent-governance' ), array( 'status' => 404 ) );
+		}
+
+		return $this->editor->state( $post );
+	}
+
+	/**
+	 * Ability: undoes the latest agent change to a post.
+	 *
+	 * @param array|null $input Ability input.
+	 * @return array|\WP_Error
+	 */
+	public function undo_post_change( $input = null ) {
+		if ( $this->classifier->is_machine() || ! $this->editor ) {
+			return new \WP_Error( 'agent_governance_agent_cannot_decide', __( 'An agent cannot undo changes. Sign in as a person to do it.', 'agent-governance' ), array( 'status' => 403 ) );
+		}
+
+		$input = (array) $input;
+
+		return $this->editor->undo_change( (int) $input['post_id'], 0, ! empty( $input['force'] ), get_current_user_id() );
 	}
 
 	/**

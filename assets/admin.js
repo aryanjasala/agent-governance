@@ -213,6 +213,13 @@
 
 	document.querySelectorAll( '.agg-rule' ).forEach( toggleSubject );
 
+	// Next to the decision on a wide screen the raw input stays open; on a phone it stays folded.
+	if ( window.matchMedia && window.matchMedia( '(min-width: 1101px)' ).matches ) {
+		document.querySelectorAll( 'details.agg-input' ).forEach( function ( details ) {
+			details.open = true;
+		} );
+	}
+
 	// Announce what happened after a form, and the result of a policy try.
 	document.querySelectorAll( '[data-agg-speak]' ).forEach( function ( node ) {
 		speak( node.getAttribute( 'data-agg-speak' ) );

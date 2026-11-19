@@ -396,7 +396,7 @@ final class NotificationsTest extends AgentTestCase {
 	}
 
 	public function test_the_heartbeat_carries_the_count_for_approvers_only(): void {
-		$this->wpdb->returns['get_var'][] = 4;
+		$this->wpdb->returns['get_results'][] = array( $this->request_row( array( 'id' => 1 ) ), $this->request_row( array( 'id' => 2 ) ), $this->request_row( array( 'id' => 3 ) ), $this->request_row( array( 'id' => 4 ) ) );
 		$this->assertSame( 4, $this->notifier->heartbeat( array(), array( 'agent_governance' => 'pending' ) )['agent_governance_pending'] );
 
 		$this->assertArrayNotHasKey( 'agent_governance_pending', $this->notifier->heartbeat( array(), array() ), 'Only when the queue screen asked.' );

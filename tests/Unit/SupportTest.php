@@ -116,7 +116,7 @@ final class SupportTest extends AgentTestCase {
 	}
 
 	public function test_tables_exist_checks_both(): void {
-		$this->wpdb->returns['get_var'] = array( 'wp_agent_governance_log', null );
+		$this->wpdb->returns['get_var'] = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', null );
 
 		$this->assertFalse( Schema::tables_exist() );
 	}
@@ -214,27 +214,27 @@ final class SupportTest extends AgentTestCase {
 		$this->wpdb->returns['get_var'] = array( null );
 		$this->assertSame( 'critical', $health->run()['status'] );
 
-		$this->wpdb->returns['get_var'] = array( 'wp_agent_governance_log', 'wp_agent_governance_requests' );
+		$this->wpdb->returns['get_var'] = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', 'wp_agent_governance_posts' );
 		Functions\when( 'get_users' )->justReturn( array() );
 		$this->assertSame( 'Nobody can approve agent calls', $health->run()['label'] );
 
 		Functions\when( 'get_users' )->justReturn( array( 1 ) );
-		$this->wpdb->returns['get_var'] = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', gmdate( 'Y-m-d H:i:s', time() - 7200 ) );
+		$this->wpdb->returns['get_var'] = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', 'wp_agent_governance_posts', gmdate( 'Y-m-d H:i:s', time() - 7200 ) );
 		$this->assertSame( 'Agent calls are waiting for approval', $health->run()['label'] );
 
 		$this->options['agent_governance_settings'] = array( 'paused' => true );
-		$this->wpdb->returns['get_var']             = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', null );
+		$this->wpdb->returns['get_var']             = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', 'wp_agent_governance_posts', null );
 		$health                                     = new SiteHealth( new \AryanX\Axle\AgentGovernance\Settings(), $this->requests );
 		$this->assertSame( 'Agent writes are paused', $health->run()['label'] );
 
 		$this->options['agent_governance_settings'] = array( 'webhook_url' => 'https://hooks.example.com/x' );
 		$this->options['agent_governance_webhook_status'] = array( 'time' => time(), 'ok' => false, 'message' => 'The receiver answered HTTP 404.' );
-		$this->wpdb->returns['get_var']             = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', null );
+		$this->wpdb->returns['get_var']             = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', 'wp_agent_governance_posts', null );
 		$health                                     = new SiteHealth( new \AryanX\Axle\AgentGovernance\Settings(), $this->requests );
 		$this->assertSame( 'The approval webhook is failing', $health->run()['label'] );
 
 		$this->options['agent_governance_settings'] = array();
-		$this->wpdb->returns['get_var']             = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', null );
+		$this->wpdb->returns['get_var']             = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', 'wp_agent_governance_posts', null );
 		$health                                     = new SiteHealth( new \AryanX\Axle\AgentGovernance\Settings(), $this->requests );
 		$this->assertSame( 'good', $health->run()['status'], 'A failed webhook that was removed does not count.' );
 	}

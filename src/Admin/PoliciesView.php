@@ -74,13 +74,29 @@ final class PoliciesView {
 			$this->render_result( $result );
 		}
 
+		// A jump list: this tab is long, so each card can be reached from the top.
+		$jumps = array(
+			'agg-rules'         => __( 'Rules', 'agent-governance' ),
+			'agg-defaults'      => __( 'When no rule matches', 'agent-governance' ),
+			'agg-limits'        => __( 'Limits and log', 'agent-governance' ),
+			'agg-notifications' => __( 'Notifications and webhook', 'agent-governance' ),
+		);
+		if ( $this->simulator ) {
+			$jumps['agg-try'] = __( 'Try this policy', 'agent-governance' );
+		}
+		echo '<nav class="agg-jump" aria-label="' . esc_attr__( 'Jump to a section', 'agent-governance' ) . '"><span class="agg-jump__label">' . esc_html__( 'Jump to', 'agent-governance' ) . '</span><ul class="agg-jump__list">';
+		foreach ( $jumps as $anchor => $label ) {
+			printf( '<li><a href="#%1$s">%2$s</a></li>', esc_attr( $anchor ), esc_html( $label ) );
+		}
+		echo '</ul></nav>';
+
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '" class="agg-policies">';
 		echo '<input type="hidden" name="action" value="agent_governance_policies">';
 		wp_nonce_field( 'agent_governance_policies' );
 		// Enter in a field saves. Without this the first button, "send a test", would take it.
 		echo '<button type="submit" class="hidden" tabindex="-1" aria-hidden="true">' . esc_html__( 'Save policies', 'agent-governance' ) . '</button>';
 
-		echo '<section class="axle-card"><h2 class="axle-card__title">' . esc_html__( 'Rules', 'agent-governance' ) . '</h2>';
+		echo '<section class="axle-card" id="agg-rules" aria-labelledby="agg-rules-title"><h2 class="axle-card__title" id="agg-rules-title">' . esc_html__( 'Rules', 'agent-governance' ) . '</h2>';
 		echo '<p class="description">' . esc_html__( 'The first matching rule wins, checking rules for the agent first, then its user, then its role, then every agent. Patterns match ability names or REST routes: * matches anything. Start a pattern with a method to match only REST calls with it, such as "DELETE /wp/v2/*".', 'agent-governance' ) . '</p>';
 
 		echo '<table class="widefat agg-stack agg-rules"><thead><tr><th scope="col">' . esc_html__( 'Applies to', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Which one', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Ability or route', 'agent-governance' ) . '</th><th scope="col">' . esc_html__( 'Then', 'agent-governance' ) . '</th><th scope="col"><span class="screen-reader-text">' . esc_html__( 'Remove', 'agent-governance' ) . '</span></th></tr></thead><tbody>';
@@ -102,7 +118,7 @@ final class PoliciesView {
 			echo '</tbody></table></details>';
 		}
 
-		echo '</section><section class="axle-card"><h2 class="axle-card__title">' . esc_html__( 'When no rule matches', 'agent-governance' ) . '</h2><table class="form-table" role="presentation"><tbody>';
+		echo '</section><section class="axle-card" id="agg-defaults" aria-labelledby="agg-defaults-title"><h2 class="axle-card__title" id="agg-defaults-title">' . esc_html__( 'When no rule matches', 'agent-governance' ) . '</h2><table class="form-table" role="presentation"><tbody>';
 		$kinds = array(
 			'readonly'    => __( 'Read-only calls', 'agent-governance' ),
 			'write'       => __( 'Writes', 'agent-governance' ),
@@ -122,7 +138,7 @@ final class PoliciesView {
 		}
 		echo '</tbody></table></section>';
 
-		echo '<section class="axle-card"><h2 class="axle-card__title">' . esc_html__( 'Limits and notifications', 'agent-governance' ) . '</h2><table class="form-table" role="presentation"><tbody>';
+		echo '<section class="axle-card" id="agg-limits" aria-labelledby="agg-limits-title"><h2 class="axle-card__title" id="agg-limits-title">' . esc_html__( 'Limits and log', 'agent-governance' ) . '</h2><table class="form-table" role="presentation"><tbody>';
 		printf(
 			'<tr><th scope="row"><label for="agg-rate">%1$s</label></th><td><input type="number" min="0" max="100000" id="agg-rate" name="rate_limit" value="%2$d" class="small-text"> %3$s<p class="description">%4$s</p></td></tr>',
 			esc_html__( 'Rate limit', 'agent-governance' ),
@@ -130,6 +146,16 @@ final class PoliciesView {
 			esc_html__( 'calls per minute, per agent', 'agent-governance' ),
 			esc_html__( '0 turns the limit off. Calls over the limit get HTTP 429.', 'agent-governance' )
 		);
+		printf(
+			'<tr><th scope="row"><label for="agg-retention">%1$s</label></th><td><input type="number" min="1" max="3650" id="agg-retention" name="retention_days" value="%2$d" class="small-text"> %3$s</td></tr>',
+			esc_html__( 'Keep the log', 'agent-governance' ),
+			(int) $settings['retention_days'],
+			esc_html__( 'days', 'agent-governance' )
+		);
+		echo '</tbody></table></section>';
+
+		echo '<section class="axle-card" id="agg-notifications" aria-labelledby="agg-notifications-title"><h2 class="axle-card__title" id="agg-notifications-title">' . esc_html__( 'Notifications and webhook', 'agent-governance' ) . '</h2>';
+		echo '<p class="description">' . esc_html__( 'How approvers learn that a call is waiting. Each person can also turn their own email, reminders and notice off on their profile.', 'agent-governance' ) . '</p><table class="form-table" role="presentation"><tbody>';
 		printf(
 			'<tr><th scope="row">%1$s</th><td><label><input type="checkbox" name="email" value="1"%2$s> %3$s</label><br><label><input type="checkbox" name="notice" value="1"%4$s> %5$s</label></td></tr>',
 			esc_html__( 'Tell approvers', 'agent-governance' ),
@@ -139,12 +165,6 @@ final class PoliciesView {
 			esc_html__( 'Show a notice in wp-admin while calls wait', 'agent-governance' )
 		);
 		$this->render_delivery( $settings );
-		printf(
-			'<tr><th scope="row"><label for="agg-retention">%1$s</label></th><td><input type="number" min="1" max="3650" id="agg-retention" name="retention_days" value="%2$d" class="small-text"> %3$s</td></tr>',
-			esc_html__( 'Keep the log', 'agent-governance' ),
-			(int) $settings['retention_days'],
-			esc_html__( 'days', 'agent-governance' )
-		);
 		echo '</tbody></table></section>';
 
 		if ( $this->simulator ) {

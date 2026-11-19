@@ -55,6 +55,13 @@ final class Requests {
 			$row[ $column ] = substr( (string) $row[ $column ], 0, 191 );
 		}
 
+		// Which object the preview names, so a post can find the requests held on it.
+		if ( ! isset( $row['object_type'] ) ) {
+			$object             = self::object_of( $row['dry_run'] );
+			$row['object_type'] = $object['type'];
+			$row['object_id']   = $object['id'];
+		}
+
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- The plugin's own table; the pending count cache is cleared below.
 		if ( ! $wpdb->insert( Schema::requests_table(), $row ) ) {
 			return 0;
@@ -63,6 +70,22 @@ final class Requests {
 		self::flush();
 
 		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * The object a stored preview names.
+	 *
+	 * @param mixed $dry_run The preview, as JSON or an array.
+	 * @return array{type: string, id: int}
+	 */
+	public static function object_of( $dry_run ): array {
+		$preview = is_array( $dry_run ) ? $dry_run : json_decode( (string) $dry_run, true );
+		$object  = is_array( $preview ) && isset( $preview['object'] ) && is_array( $preview['object'] ) ? $preview['object'] : array();
+
+		return array(
+			'type' => substr( (string) ( $object['type'] ?? '' ), 0, 40 ),
+			'id'   => (int) ( $object['id'] ?? 0 ),
+		);
 	}
 
 	/**
@@ -222,7 +245,10 @@ final class Requests {
 	}
 
 	/**
-	 * How many requests wait for a decision. Cached until one changes.
+	 * How many requests wait for a decision, on the whole site. Cached until one changes.
+	 *
+	 * Only for WP-CLI and other trusted callers. A screen shows pending_count_for(),
+	 * which counts what that person may decide.
 	 *
 	 * @return int
 	 */
@@ -239,6 +265,110 @@ final class Requests {
 		wp_cache_set( 'pending_count', $count, Log::CACHE_GROUP, 5 * MINUTE_IN_SECONDS );
 
 		return $count;
+	}
+
+	/**
+	 * How many requests wait for this person to decide: only those they may open
+	 * and decide, never the site-wide number. Cached per person until one changes.
+	 *
+	 * Counts at most the newest 500 waiting requests (agent_governance_count_scan_limit).
+	 *
+	 * @param int $user_id User, 0 for the current one.
+	 * @return int
+	 */
+	public function pending_count_for( int $user_id = 0 ): int {
+		$user_id = $user_id > 0 ? $user_id : get_current_user_id();
+		if ( $user_id < 1 ) {
+			return 0;
+		}
+
+		$key    = 'pending_count_' . (string) wp_cache_get( 'pending_gen', Log::CACHE_GROUP ) . '_' . $user_id;
+		$cached = wp_cache_get( $key, Log::CACHE_GROUP );
+		if ( false !== $cached ) {
+			return (int) $cached;
+		}
+
+		$count = count( $this->pending_for( $user_id ) );
+		wp_cache_set( $key, $count, Log::CACHE_GROUP, 5 * MINUTE_IN_SECONDS );
+
+		return $count;
+	}
+
+	/**
+	 * The waiting requests this person may open and decide, newest first.
+	 *
+	 * @param int $user_id User, 0 for the current one.
+	 * @param int $limit   At most this many, 0 for all that were scanned.
+	 * @return array[] Request rows.
+	 */
+	public function pending_for( int $user_id = 0, int $limit = 0 ): array {
+		global $wpdb;
+
+		$user_id = $user_id > 0 ? $user_id : get_current_user_id();
+
+		/**
+		 * Filters how many of the newest waiting requests are checked when counting
+		 * what a person may decide.
+		 *
+		 * @param int $limit Default 500. 10 to 5000.
+		 */
+		$scan = max( 10, min( 5000, (int) apply_filters( 'agent_governance_count_scan_limit', 500 ) ) );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The plugin's own table; the count built from it is cached per person.
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE status = %s AND created >= %s ORDER BY id DESC LIMIT %d', Schema::requests_table(), self::PENDING, gmdate( 'Y-m-d H:i:s', time() - Settings::request_ttl() ), $scan ), ARRAY_A );
+
+		$found = array();
+		foreach ( is_array( $rows ) ? $rows : array() as $row ) {
+			if ( Review::can( $row, $user_id ) ) {
+				$found[] = $row;
+				if ( $limit > 0 && count( $found ) >= $limit ) {
+					break;
+				}
+			}
+		}
+
+		return $found;
+	}
+
+	/**
+	 * Waiting requests held on one object, such as a post.
+	 *
+	 * Rows are returned whole: the caller decides who may see them.
+	 *
+	 * @param string $type Object type, a post type.
+	 * @param int    $id   Object ID.
+	 * @return array[] Request rows, newest first, at most 20.
+	 */
+	public function pending_on( string $type, int $id ): array {
+		global $wpdb;
+
+		if ( '' === $type || $id < 1 ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The plugin's own table, indexed on the object; read when an editor opens the post.
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE object_id = %d AND object_type = %s AND status = %s AND created >= %s ORDER BY id DESC LIMIT 20', Schema::requests_table(), $id, $type, self::PENDING, gmdate( 'Y-m-d H:i:s', time() - Settings::request_ttl() ) ), ARRAY_A );
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
+	/**
+	 * Waiting requests that agents made with a user's application passwords, at most 500.
+	 *
+	 * @param int $user_id The user.
+	 * @return array[] Request rows.
+	 */
+	public function pending_for_app_passwords( int $user_id ): array {
+		global $wpdb;
+
+		if ( $user_id < 1 ) {
+			return array();
+		}
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- The plugin's own table, read when a session report names the user.
+		$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM %i WHERE status = %s AND user_id = %d AND identity LIKE %s ORDER BY id ASC LIMIT 500', Schema::requests_table(), self::PENDING, $user_id, $wpdb->esc_like( 'app:' ) . '%' ), ARRAY_A );
+
+		return is_array( $rows ) ? $rows : array();
 	}
 
 	/**
@@ -340,10 +470,12 @@ final class Requests {
 	}
 
 	/**
-	 * Clears the cached pending count.
+	 * Clears the cached pending counts, the site's and each person's.
 	 */
 	public static function flush(): void {
 		wp_cache_delete( 'pending_count', Log::CACHE_GROUP );
+		// Per-person counts carry this number in their key, so changing it drops them all.
+		wp_cache_set( 'pending_gen', (string) microtime( true ), Log::CACHE_GROUP );
 	}
 
 	/**

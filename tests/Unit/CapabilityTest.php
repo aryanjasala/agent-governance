@@ -184,7 +184,7 @@ final class CapabilityTest extends AgentTestCase {
 	public function test_site_health_is_critical_while_no_role_has_it(): void {
 		$this->strip();
 		Functions\when( 'esc_url' )->returnArg( 1 );
-		$this->wpdb->returns['get_var'] = array( 'wp_agent_governance_log', 'wp_agent_governance_requests' );
+		$this->wpdb->returns['get_var'] = array( 'wp_agent_governance_log', 'wp_agent_governance_requests', 'wp_agent_governance_posts' );
 
 		$result = ( new SiteHealth( $this->settings, $this->requests ) )->run();
 

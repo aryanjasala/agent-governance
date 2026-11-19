@@ -102,7 +102,7 @@ final class NotifierTest extends AgentTestCase {
 
 	public function test_the_notice_counts_waiting_requests(): void {
 		Functions\when( 'get_current_screen' )->justReturn( (object) array( 'id' => 'dashboard' ) );
-		$this->wpdb->returns['get_var'][] = 3;
+		$this->wpdb->returns['get_results'][] = array( $this->request_row( array( 'id' => 1 ) ), $this->request_row( array( 'id' => 2 ) ), $this->request_row( array( 'id' => 3 ) ) );
 		Filters\expectApplied( 'agent_governance_notice_message' )->once()->with( '3 AI agent requests are waiting for your approval.', 3 )->andReturn( 'Three waiting.' );
 
 		ob_start();

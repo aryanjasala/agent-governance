@@ -231,7 +231,7 @@ final class Page implements Service {
 	 * Adds Tools > AI Agents, with the count of waiting requests.
 	 */
 	public function add_page(): void {
-		$count = current_user_can( Notifier::capability() ) ? $this->requests->pending_count() : 0;
+		$count = current_user_can( Notifier::capability() ) ? $this->requests->pending_count_for( get_current_user_id() ) : 0;
 		$title = __( 'Agent Governance', 'agent-governance' );
 		$label = esc_html( self::menu_title() );
 		$menu  = $count ? $label . sprintf( ' <span class="awaiting-mod count-%1$d"><span class="pending-count">%1$d</span></span>', $count ) : $label;
@@ -273,7 +273,7 @@ final class Page implements Service {
 		}
 
 		$tab   = $this->tab();
-		$count = $this->requests->pending_count();
+		$count = $this->requests->pending_count_for( get_current_user_id() );
 		$tabs  = array(
 			'requests' => $count
 				/* translators: %d: number of waiting requests. */

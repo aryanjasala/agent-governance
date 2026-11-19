@@ -8,6 +8,7 @@ const sql = ( query ) => wp( 'db', 'query', query );
 function clearGovernance() {
 	sql( 'TRUNCATE TABLE wp_agent_governance_log' );
 	sql( 'TRUNCATE TABLE wp_agent_governance_requests' );
+	sql( 'TRUNCATE TABLE wp_agent_governance_posts' );
 	for ( const name of [ 'agent_governance_settings', 'agent_governance_rules' ] ) {
 		try {
 			wp( 'option', 'delete', name );

@@ -201,4 +201,78 @@ final class ApprovalsTest extends AgentTestCase {
 
 		$this->assertFalse( $this->approvals->expire( $this->request_row() ) );
 	}
+
+	public function test_a_revoked_application_password_stops_an_approved_call(): void {
+		\WP_Application_Passwords::$items = array();
+		Functions\expect( 'wp_get_ability' )->never();
+		$this->rows( $this->request_row() );
+		Actions\expectDone( 'agent_governance_request_approved' )->never();
+		Actions\expectDone( 'agent_governance_request_expired' )->once()->with( Mockery::type( 'array' ), Mockery::type( 'string' ) );
+
+		$result = $this->approvals->approve( 7, 1 );
+
+		$this->assertSame( 'agent_governance_credential_revoked', $result->get_error_code() );
+		$this->assertSame( 410, $result->get_error_data()['status'] );
+		$expired = $this->updates_with( 'reason' )[0]['data'];
+		$this->assertSame( Requests::EXPIRED, $expired['status'], 'The request ends, it does not wait for another click.' );
+		$this->assertStringContainsString( 'revoked', $expired['reason'] );
+		$this->assertCount( 1, $this->wpdb->updated, 'Never marked approved.' );
+	}
+
+	public function test_a_password_that_belongs_to_another_user_does_not_count(): void {
+		\WP_Application_Passwords::$items = array(
+			1 => array( 'aaaa-1111' => array( 'uuid' => 'aaaa-1111', 'name' => 'Not theirs' ) ), // phpcs:ignore WordPress.Arrays.ArrayDeclarationSpacing.AssociativeArrayFound
+		);
+		$this->rows( $this->request_row() );
+
+		$this->assertSame( 'agent_governance_credential_revoked', $this->approvals->approve( 7, 1 )->get_error_code() );
+	}
+
+	public function test_a_deleted_user_stops_an_approved_call(): void {
+		unset( $this->users[2] );
+		$this->rows( $this->request_row() );
+
+		$this->assertSame( 'agent_governance_user_gone', $this->approvals->approve( 7, 1 )->get_error_code() );
+	}
+
+	public function test_the_password_is_checked_again_right_before_the_call_runs(): void {
+		\WP_Application_Passwords::$items = array();
+		Functions\expect( 'wp_get_ability' )->never();
+
+		$result = $this->approvals->execute( $this->request_row() );
+
+		$this->assertSame( 'agent_governance_credential_revoked', $result->get_error_code() );
+		$this->assertSame( 1, $this->user_id, 'Nobody was switched to.' );
+	}
+
+	public function test_a_call_without_an_application_password_needs_only_its_user(): void {
+		$ability = new \Agg_Ability_Double();
+		Functions\expect( 'wp_get_ability' )->once()->andReturn( $ability );
+		\WP_Application_Passwords::$items = array();
+
+		$result = $this->approvals->execute( $this->request_row( array( 'identity' => 'user:2' ) ) );
+
+		$this->assertNull( $result );
+		$this->assertCount( 1, $ability->executed );
+	}
+
+	public function test_rejecting_still_works_after_the_password_was_revoked(): void {
+		\WP_Application_Passwords::$items = array();
+		$this->rows( $this->request_row(), $this->request_row( array( 'status' => Requests::REJECTED ) ) );
+
+		$result = $this->approvals->reject( 7, 1, 'No.' );
+
+		$this->assertSame( Requests::REJECTED, $result['status'] );
+	}
+
+	public function test_expiring_for_a_user_covers_only_their_application_password_requests(): void {
+		$this->wpdb->returns['get_results'][] = array( $this->request_row( array( 'id' => 7 ) ), $this->request_row( array( 'id' => 8 ) ) );
+
+		$count = $this->approvals->expire_for_user( 2, 'Reported.' );
+
+		$this->assertSame( 2, $count );
+		$this->assertStringContainsString( "identity LIKE 'app:%'", $this->wpdb->queries[0] );
+		$this->assertStringContainsString( "user_id = '2'", $this->wpdb->queries[0] );
+		$this->assertSame( 'Reported.', $this->wpdb->updated[0]['data']['reason'] );
+	}
 }

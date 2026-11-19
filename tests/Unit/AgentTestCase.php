@@ -91,6 +91,16 @@ abstract class AgentTestCase extends TestCase {
 		);
 		$this->user_id = 1;
 
+		// The agents' application password, still good unless a test revokes it.
+		\WP_Application_Passwords::$items = array(
+			2 => array(
+				'aaaa-1111' => array(
+					'uuid' => 'aaaa-1111',
+					'name' => 'Helper',
+				),
+			),
+		);
+
 		Functions\when( 'get_current_user_id' )->alias(
 			function () {
 				return $this->user_id;

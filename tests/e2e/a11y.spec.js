@@ -96,6 +96,19 @@ test.describe( 'Accessibility', () => {
 					exclude: [ ...( config.exclude || [] ), ...( screen.exclude || [] ) ].map( fill ),
 					disableRules: Object.keys( screen.disableRules || {} ),
 				} );
+
+				// The same screen at 360 px must not scroll sideways as a whole page.
+				// Wide tables belong in .axle-scroll. "narrow": false opts a screen out (say why in "skip"-style notes).
+				if ( false !== screen.narrow ) {
+					const size = tab.viewportSize() || { width: 1280, height: 800 };
+					await tab.setViewportSize( { width: 360, height: 800 } );
+					await tab.waitForTimeout( 300 );
+					const overflow = await tab.evaluate( () => document.documentElement.scrollWidth - document.documentElement.clientWidth );
+					await tab.setViewportSize( size );
+					if ( overflow > 1 ) {
+						throw new Error( `${ screen.name }: the page scrolls ${ overflow } px sideways at 360 px. Wrap wide tables in .axle-scroll or let the layout wrap.` );
+					}
+				}
 			} finally {
 				if ( visitor ) {
 					await visitor.close();
