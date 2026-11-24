@@ -1,6 +1,6 @@
 <?php
 /**
- * Listens to User Session Manager: when a person says a sign-in was not theirs,
+ * Listens to Axle Sessions: when a person says a sign-in was not theirs,
  * or signs out everywhere, what their application passwords asked and still
  * waits for approval stops waiting.
  *
@@ -18,7 +18,7 @@ defined( 'ABSPATH' ) || exit;
  * expire. The agents have to ask again, with a password that is still good.
  *
  * It hooks the plugin's actions with plain add_action, so nothing here needs
- * User Session Manager to be active.
+ * Axle Sessions to be active.
  */
 final class SessionSignals implements Service {
 
@@ -39,11 +39,19 @@ final class SessionSignals implements Service {
 	}
 
 	/**
+	 * The hook name prefixes of Axle Sessions: its current one, and the one it had before it was renamed.
+	 * Both are listened to, so a site keeps working whichever version of Axle Sessions it runs.
+	 */
+	public const PREFIXES = array( 'axle_sessions_', 'user_session_manager_' );
+
+	/**
 	 * Adds the hooks.
 	 */
 	public function register(): void {
-		add_action( 'user_session_manager_not_me_reported', array( $this, 'not_me_reported' ), 10, 2 );
-		add_action( 'user_session_manager_user_signed_out_everywhere', array( $this, 'signed_out_everywhere' ), 10, 3 );
+		foreach ( self::PREFIXES as $prefix ) {
+			add_action( $prefix . 'not_me_reported', array( $this, 'not_me_reported' ), 10, 2 );
+			add_action( $prefix . 'user_signed_out_everywhere', array( $this, 'signed_out_everywhere' ), 10, 3 );
+		}
 	}
 
 	/**
@@ -75,7 +83,7 @@ final class SessionSignals implements Service {
 	 */
 	private function expire( int $user_id, string $source ): void {
 		/**
-		 * Filters whether a report from User Session Manager expires the waiting requests
+		 * Filters whether a report from Axle Sessions expires the waiting requests
 		 * that agents made with the user's application passwords.
 		 *
 		 * @param bool   $expire  Default true.

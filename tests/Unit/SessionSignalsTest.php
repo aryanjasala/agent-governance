@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for the reports from User Session Manager that expire held requests.
+ * Tests for the reports from Axle Sessions that expire held requests.
  *
  * @package AryanX\Axle\AgentGovernance
  */
@@ -50,11 +50,22 @@ final class SessionSignalsTest extends AgentTestCase {
 		}
 	}
 
-	public function test_it_listens_with_plain_add_action(): void {
-		$this->assertArrayHasKey( 'user_session_manager_not_me_reported', $this->hooked );
-		$this->assertArrayHasKey( 'user_session_manager_user_signed_out_everywhere', $this->hooked );
-		$this->assertSame( 2, $this->hooked['user_session_manager_not_me_reported'][0][1], 'user and report' );
-		$this->assertSame( 3, $this->hooked['user_session_manager_user_signed_out_everywhere'][0][1], 'user, count and context' );
+	public function test_it_listens_with_plain_add_action_under_the_new_and_the_old_name(): void {
+		foreach ( array( 'axle_sessions_', 'user_session_manager_' ) as $prefix ) {
+			$this->assertArrayHasKey( $prefix . 'not_me_reported', $this->hooked );
+			$this->assertArrayHasKey( $prefix . 'user_signed_out_everywhere', $this->hooked );
+			$this->assertSame( 2, $this->hooked[ $prefix . 'not_me_reported' ][0][1], 'user and report' );
+			$this->assertSame( 3, $this->hooked[ $prefix . 'user_signed_out_everywhere' ][0][1], 'user, count and context' );
+		}
+	}
+
+	public function test_a_report_under_the_new_name_expires_the_waiting_requests_too(): void {
+		$this->wpdb->returns['get_results'][] = array( $this->request_row( array( 'id' => 7 ) ) );
+		Actions\expectDone( 'agent_governance_requests_expired_for_user' )->once()->with( 2, 1, 'signed_out_everywhere' );
+
+		$this->do_action_stub( 'axle_sessions_user_signed_out_everywhere', 2, 3, 'self' );
+
+		$this->assertSame( Requests::EXPIRED, $this->wpdb->updated[0]['data']['status'] );
 	}
 
 	public function test_a_not_me_report_expires_the_users_waiting_requests(): void {
