@@ -40,7 +40,7 @@ AI agents now work on WordPress through the Abilities API, the MCP adapter and a
 - **Audit log** of every call with the input (secrets removed), outcome and timing, grouped into **sessions**. Calls another plugin refused, such as Site Read-Only Mode during a freeze, are in it too
 - **Roll back a session**: edited posts go back to the revision saved before the agent touched them, created posts go to the trash, after a preview
 - **Agent changes, in the editor**: open a post an agent changed and the sidebar says "Content assistant changed this 2 hours ago", shows what changed field by field, and offers **Undo this change** for this post only, not the whole session. It warns first when a person saved the post since, and keeps the version it replaces in the revisions. An approver sees a request held on the post with **Approve** and **Reject** right there. Nothing is shown for a post the person cannot edit
-- **Credentials are checked when it counts**: an approved call runs as the agent's user, so a request made with an application password that was revoked since is refused and ends. When a person reports a sign-in that was not theirs, or signs out everywhere, in User Session Manager, the requests their application passwords still hold expire
+- **Credentials are checked when it counts**: an approved call runs as the agent's user, so a request made with an application password that was revoked since is refused and ends. When a person reports a sign-in that was not theirs, or signs out everywhere, in Axle Sessions, the requests their application passwords still hold expire
 - **Try a policy on past calls**: replay the last 30 days of the log against the policy you are editing, and see per agent what would be allowed, held, refused or rate limited, and what changes from today. The replay uses the same decision code as live calls, and nothing is saved
 - **Suggested rules**: when you approve the same kind of call from an agent five times and never reject it, the queue offers an allow rule with the replay result. You accept it, and can undo it
 - **Approvers only see what they could open**: a preview, input or result is hidden, and deciding is refused, when the approver could not edit the post, term or user the call touches
@@ -132,7 +132,7 @@ src/
 ├── PostIndex.php         from a post to the calls that changed it
 ├── Rollback.php          session rollback, and undo for one post
 ├── Editor.php            the editor panel's REST routes
-├── SessionSignals.php    expires requests on Session Manager reports
+├── SessionSignals.php    expires requests on Axle Sessions reports
 ├── Redactor.php          secrets out, size caps
 ├── Notifier.php          email and notice to approvers
 ├── Cleanup.php           the hourly clean-up
@@ -172,7 +172,7 @@ Small plugins that each fill one gap in WordPress, all free with no pro version.
 | <img src="https://raw.githubusercontent.com/aryanjasala/block-theme-ops/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [Block Theme Ops](https://github.com/aryanjasala/block-theme-ops) | Find Site Editor changes that override your theme files, see the diff, reset them, send them to Git, move them to another site or lock them |
 | <img src="https://raw.githubusercontent.com/aryanjasala/role-right-sizer/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [Role Right-Sizer](https://github.com/aryanjasala/role-right-sizer) | Recommends the smallest role each user needs, from what they actually do |
 | <img src="https://raw.githubusercontent.com/aryanjasala/update-rehearsal/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [Update Rehearsal](https://github.com/aryanjasala/update-rehearsal) | Try plugin, theme, core and PHP updates, a new plugin, or life without one, on a disposable copy of your site in WordPress Playground first |
-| <img src="https://raw.githubusercontent.com/aryanjasala/user-session-manager/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [User Session Manager](https://github.com/aryanjasala/user-session-manager) | See every device signed in, sign out one, and limit sessions per role |
+| <img src="https://raw.githubusercontent.com/aryanjasala/axle-sessions/main/.wordpress-org/icon-128x128.png" alt="" width="32"> | [Axle Sessions](https://github.com/aryanjasala/axle-sessions) | See every device signed in, sign out one, and limit sessions per role |
 
 ## License
 

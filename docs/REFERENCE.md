@@ -186,7 +186,7 @@ The notice, the admin bar item, the menu bubble, the tab title and the Requests 
 
 ### Revoked credentials
 
-An approved call runs as the user the agent signed in as, so it is refused, and the request expires, when the application password it was made with was revoked meanwhile, or the user is gone. The check runs when you approve, and again right before the call runs. Rejecting is always possible. If User Session Manager is active, a report of a sign-in that was not theirs (`user_session_manager_not_me_reported`), or a sign-out everywhere (`user_session_manager_user_signed_out_everywhere`), expires the waiting requests that person's application passwords made, since their credentials may be in other hands. `agent_governance_expire_on_session_report` turns that off.
+An approved call runs as the user the agent signed in as, so it is refused, and the request expires, when the application password it was made with was revoked meanwhile, or the user is gone. The check runs when you approve, and again right before the call runs. Rejecting is always possible. If Axle Sessions is active, a report of a sign-in that was not theirs (`axle_sessions_not_me_reported`), or a sign-out everywhere (`axle_sessions_user_signed_out_everywhere`), expires the waiting requests that person's application passwords made, since their credentials may be in other hands. `agent_governance_expire_on_session_report` turns that off.
 
 ## Hooks
 
@@ -261,8 +261,8 @@ An approved call runs as the user the agent signed in as, so it is refused, and 
 | `agent_governance_request_rejected` | action | `( array $request, int $approver_id, string $reason )`. A held call was rejected |
 | `agent_governance_request_executed` | action | `( array $request, mixed $result )`. An approved call ran. `status` is `executed` or `failed` |
 | `agent_governance_request_expired` | action | `( array $request, string $reason )`. A held call expired. `$reason` is empty when it only waited too long, and says why when a revoked application password or a session report ended it |
-| `agent_governance_requests_expired_for_user` | action | `( int $user_id, int $expired, string $source )`. A report from User Session Manager (`not_me` or `signed_out_everywhere`) expired requests |
-| `agent_governance_expire_on_session_report` | filter | `( bool $expire, int $user_id, string $source )`. Whether a Session Manager report expires the requests the person's application passwords hold. Default true |
+| `agent_governance_requests_expired_for_user` | action | `( int $user_id, int $expired, string $source )`. A report from Axle Sessions (`not_me` or `signed_out_everywhere`) expired requests |
+| `agent_governance_expire_on_session_report` | filter | `( bool $expire, int $user_id, string $source )`. Whether a Axle Sessions report expires the requests the person's application passwords hold. Default true |
 | `agent_governance_count_scan_limit` | filter | `( int $limit )`. How many of the newest waiting requests are checked when counting what a person may decide. Default 500, 10 to 5000 |
 | `agent_governance_editor_panel` | filter | `( bool $show, WP_Post $post )`. Whether the editor shows the Agent changes panel for a post. Default true. It is only ever offered to people who can edit the post |
 | `agent_governance_can_undo_change` | filter | `( bool $can, int $post_id, int $user_id )`. Whether a person may undo an agent's change to a post. Default: whoever may edit the post, or delete it when the agent created it |

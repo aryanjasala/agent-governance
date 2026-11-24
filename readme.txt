@@ -29,7 +29,7 @@ Agent Governance adds that.
 * Approvers get an email, a webhook message if you set one, and a notice, and see the call under Tools > AI Agents with a **dry-run preview**: each field before and after, for posts, pages, terms, users, settings and plugins. Abilities can add their own preview; the rest show what the ability says it does.
 * Approve runs the call as the user the agent signed in as. Reject sends the agent your reason. Requests nobody decides expire after a day.
 * An agent can never approve its own request: deciding is refused through application passwords and MCP.
-* An approved call runs as the user the agent signed in as, so a request made with an application password that was revoked since is refused and ends. If User Session Manager reports a sign-in that was not the person's, or a sign-out everywhere, the requests their application passwords still hold expire.
+* An approved call runs as the user the agent signed in as, so a request made with an application password that was revoked since is refused and ends. If Axle Sessions reports a sign-in that was not the person's, or a sign-out everywhere, the requests their application passwords still hold expire.
 
 **Policies:**
 
@@ -127,7 +127,7 @@ Each number counts only the requests that person could open and decide. Having t
 
 = What happens to a request when its application password is revoked? =
 
-Approving it is refused and the request ends, since the call would run as that user. Rejecting still works. The same happens to the waiting requests of a person who reports a sign-in that was not theirs in User Session Manager.
+Approving it is refused and the request ends, since the call would run as that user. Rejecting still works. The same happens to the waiting requests of a person who reports a sign-in that was not theirs in Axle Sessions.
 
 = Does it slow down people using wp-admin? =
 

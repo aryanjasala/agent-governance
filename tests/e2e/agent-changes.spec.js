@@ -269,7 +269,7 @@ test.describe( 'Agent changes in the editor', () => {
 		expect( one( `SELECT status FROM wp_agent_governance_requests WHERE id = ${ requestId }` ) ).toBe( 'expired' );
 	} );
 
-	test( 'a not-me report from Session Manager expires held requests from that persons application passwords', async () => {
+	test( 'a not-me report from Axle Sessions expires held requests from that persons application passwords', async () => {
 		wp( 'agent-governance', 'add-rule', 'POST /wp/v2/posts/*', 'require_approval' );
 		const id = newPost( 'Reported', 'Body' );
 		made.posts.push( id );
@@ -277,14 +277,14 @@ test.describe( 'Agent changes in the editor', () => {
 		const held = await writer.call( 'POST', `/wp/v2/posts/${ id }`, { title: 'Reported, edited' } );
 		const requestId = held.body.data.request_id;
 
-		// Session Manager is not installed here: the same action it fires.
-		wpEval( 'do_action( "user_session_manager_not_me_reported", 1, array( "source" => "test" ) );' );
+		// Axle Sessions is not installed here: the same action it fires.
+		wpEval( 'do_action( "axle_sessions_not_me_reported", 1, array( "source" => "test" ) );' );
 
 		expect( one( `SELECT status FROM wp_agent_governance_requests WHERE id = ${ requestId }` ) ).toBe( 'expired' );
 		expect( one( `SELECT reason FROM wp_agent_governance_requests WHERE id = ${ requestId }` ) ).toContain( 'not theirs' );
 
 		const again = await writer.call( 'POST', `/wp/v2/posts/${ id }`, { title: 'Reported, again' } );
-		wpEval( 'do_action( "user_session_manager_user_signed_out_everywhere", 1, 2, "self" );' );
+		wpEval( 'do_action( "axle_sessions_user_signed_out_everywhere", 1, 2, "self" );' );
 		expect( one( `SELECT status FROM wp_agent_governance_requests WHERE id = ${ again.body.data.request_id }` ) ).toBe( 'expired' );
 	} );
 
